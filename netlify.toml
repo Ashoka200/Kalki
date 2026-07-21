@@ -1,0 +1,4 @@
+# Netlify config: Kalki is static files at the repo root — no build step.
+# Connect this repo in Netlify and it redeploys on every push to main.
+[build]
+  publish = "."

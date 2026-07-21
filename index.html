@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b141a">
+<title>Kalki — Personal Assistant</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div class="avatar" aria-hidden="true">K</div>
+    <div class="who">
+      <div class="name">Kalki</div>
+      <div class="status" id="status">online</div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="chat" title="Chat">💬</button>
+      <button class="tab" data-view="bookings" title="Bookings">📅</button>
+      <button class="tab" data-view="settings" title="Settings">⚙️</button>
+    </nav>
+  </header>
+
+  <main id="view-chat" class="view active">
+    <div id="messages" role="log" aria-live="polite"></div>
+    <div id="chips"></div>
+    <form id="composer" autocomplete="off">
+      <input id="input" type="text" placeholder="Message Kalki…" aria-label="Message" maxlength="500">
+      <button id="send" type="submit" aria-label="Send">➤</button>
+    </form>
+  </main>
+
+  <main id="view-bookings" class="view">
+    <h2>Upcoming</h2>
+    <div id="booking-list"></div>
+  </main>
+
+  <main id="view-settings" class="view">
+    <h2>Theme studio</h2>
+    <section class="card">
+      <label class="row-label">Presets</label>
+      <div id="presets"></div>
+      <div class="grid2">
+        <label>Accent <input type="color" data-theme="accent"></label>
+        <label>Background <input type="color" data-theme="bg"></label>
+        <label>My bubble <input type="color" data-theme="sent"></label>
+        <label>Kalki's bubble <input type="color" data-theme="recv"></label>
+      </div>
+      <label>Wallpaper
+        <select data-theme="wallpaper">
+          <option value="none">None</option>
+          <option value="dots">Dots</option>
+          <option value="grid">Grid</option>
+          <option value="waves">Waves</option>
+          <option value="gradient">Gradient</option>
+        </select>
+      </label>
+      <label>Text size <span id="fs-val"></span>
+        <input type="range" min="14" max="20" step="1" data-theme="fontSize">
+      </label>
+      <label>Bubble roundness <span id="radius-val"></span>
+        <input type="range" min="6" max="24" step="2" data-theme="radius">
+      </label>
+      <button id="theme-reset" class="btn ghost">Reset theme</button>
+    </section>
+
+    <h2>About you</h2>
+    <section class="card">
+      <label>Name <input id="p-name" type="text" placeholder="Your name"></label>
+      <label>Home city <input id="p-city" type="text" placeholder="e.g. Austin"></label>
+      <label>Monthly rent budget <input id="p-budget" type="number" min="0" placeholder="e.g. 1500"></label>
+      <p class="hint">Kalki uses this to pre-fill searches so you type less.</p>
+    </section>
+
+    <h2>Notifications</h2>
+    <section class="card">
+      <button id="notif-btn" class="btn">Enable reminder notifications</button>
+      <p class="hint" id="notif-state"></p>
+    </section>
+
+    <h2>Storage</h2>
+    <section class="card">
+      <p class="hint">Everything lives on this device only. <span id="storage-used"></span></p>
+      <button id="clear-chat" class="btn ghost">Clear chat history</button>
+      <button id="clear-all" class="btn danger">Erase all data</button>
+    </section>
+  </main>
+
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
