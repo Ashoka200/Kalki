@@ -1,10 +1,11 @@
-/* App bootstrap: wires views, composer, theme studio, profile, reminders
-   and the service worker together. */
-import { store, fmtBytes } from './store.js';
+/* App bootstrap: wires views, composer, voice, theme studio, profile,
+   region, backup, reminders and the service worker together. */
+import { store, fmtBytes, exportData, importData } from './store.js';
 import * as theme from './theme.js';
 import * as ui from './ui.js';
 import { Brain } from './brain.js';
-import { listBookings, listReminders, removeBooking, removeReminder, popDueReminders, fmtWhen, iconFor } from './skills.js';
+import { REGIONS, getRegion } from './regions.js';
+import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor } from './skills.js';
 
 const brain = new Brain();
 theme.apply();
@@ -44,7 +45,38 @@ ui.showChips.onPick = send;
 
 if (ui.restore() === 0) botRespond(brain.welcome());
 
+/* ---------- voice input ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const $mic = document.getElementById('mic');
+if (!SR) {
+  $mic.hidden = true;
+} else {
+  let rec = null;
+  $mic.onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = navigator.language || 'en-US';
+    rec.interimResults = true;
+    $mic.classList.add('rec');
+    rec.onresult = (e) => {
+      $input.value = Array.from(e.results).map((r) => r[0].transcript).join('');
+      if (e.results[e.results.length - 1].isFinal) rec.stop();
+    };
+    rec.onerror = () => rec.stop();
+    rec.onend = () => { $mic.classList.remove('rec'); rec = null; $input.focus(); };
+    rec.start();
+  };
+}
+
 /* ---------- bookings view ---------- */
+
+/** "2026-08-03T17:00" for datetime-local inputs, in local time. */
+const localISO = (iso) => {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 function renderBookings() {
   const $list = document.getElementById('booking-list');
   $list.textContent = '';
@@ -66,9 +98,36 @@ function renderBookings() {
     row.innerHTML = '<div class="icon"></div><div class="meta"><div class="t"></div><div class="s"></div></div><div class="actions"></div>';
     row.querySelector('.icon').textContent = it.icon;
     row.querySelector('.t').textContent = it.label;
-    row.querySelector('.s').textContent = fmtWhen(it.when) + (it.place ? ' · ' + it.place : '');
+    row.querySelector('.s').textContent = fmtWhen(it.when)
+      + (it.place ? ' · ' + it.place : '')
+      + (it.repeat ? ' · ' + repeatLabel(it.repeat) : '');
     const actions = row.querySelector('.actions');
+
     if (it.isBooking) {
+      const edit = document.createElement('button');
+      edit.textContent = '✏️';
+      edit.title = 'Reschedule';
+      edit.onclick = () => {
+        const meta = row.querySelector('.meta');
+        meta.textContent = '';
+        const inp = document.createElement('input');
+        inp.type = 'datetime-local';
+        inp.value = localISO(it.when);
+        const save = document.createElement('button');
+        save.textContent = '✓';
+        save.className = 'save';
+        save.onclick = () => {
+          if (inp.value) updateBooking(it.id, { when: new Date(inp.value).toISOString() });
+          renderBookings();
+        };
+        const cancel = document.createElement('button');
+        cancel.textContent = '✕';
+        cancel.onclick = renderBookings;
+        meta.append(inp, save, cancel);
+        meta.classList.add('editing');
+      };
+      actions.appendChild(edit);
+
       const ics = document.createElement('button');
       ics.textContent = '📆';
       ics.title = 'Add to calendar';
@@ -78,7 +137,15 @@ function renderBookings() {
     const del = document.createElement('button');
     del.textContent = '🗑️';
     del.title = 'Delete';
-    del.onclick = () => { (it.isBooking ? removeBooking : removeReminder)(it.id); renderBookings(); };
+    del.onclick = () => {
+      (it.isBooking ? removeBooking : removeReminder)(it.id);
+      renderBookings();
+      ui.snack('Deleted.', 'Undo', () => {
+        const { icon, label, isBooking, ...raw } = it;
+        (isBooking ? restoreBooking : restoreReminder)(raw);
+        renderBookings();
+      });
+    };
     actions.appendChild(del);
     $list.appendChild(row);
   }
@@ -109,6 +176,8 @@ function renderSettings() {
   document.getElementById('p-name').value = p.name || '';
   document.getElementById('p-city').value = p.city || '';
   document.getElementById('p-budget').value = p.budget || '';
+  document.getElementById('p-region').value = getRegion();
+  document.getElementById('p-tts').checked = !!p.tts;
   document.getElementById('storage-used').textContent = `Using ${fmtBytes(store.usage())}.`;
   document.getElementById('notif-state').textContent =
     !('Notification' in window) ? 'Not supported in this browser.' : `Status: ${Notification.permission}`;
@@ -125,19 +194,44 @@ document.querySelectorAll('[data-theme]').forEach((inp) => {
 });
 document.getElementById('theme-reset').onclick = () => { theme.resetTheme(); renderSettings(); };
 
-/* ---------- settings: profile / notifications / storage ---------- */
+/* ---------- settings: profile / region / voice ---------- */
 for (const [id, key] of [['p-name', 'name'], ['p-city', 'city'], ['p-budget', 'budget']]) {
   document.getElementById(id).onchange = (e) => {
     const v = e.target.type === 'number' ? +e.target.value || null : e.target.value.trim() || null;
     brain.setProfile({ [key]: v });
   };
 }
+document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
+document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
 
 document.getElementById('notif-btn').onclick = async () => {
   if ('Notification' in window) await Notification.requestPermission();
   renderSettings();
 };
 
+/* ---------- settings: backup ---------- */
+document.getElementById('export-btn').onclick = () => {
+  const blob = new Blob([JSON.stringify(exportData(), null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kalki-backup.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+const $importFile = document.getElementById('import-file');
+document.getElementById('import-btn').onclick = () => $importFile.click();
+$importFile.onchange = async () => {
+  const f = $importFile.files[0];
+  if (!f) return;
+  try {
+    importData(JSON.parse(await f.text()));
+    location.reload();
+  } catch {
+    ui.snack('That file isn’t a Kalki backup.');
+  }
+};
+
+/* ---------- settings: storage ---------- */
 document.getElementById('clear-chat').onclick = () => {
   store.remove('messages');
   ui.clearChatView();
@@ -150,10 +244,26 @@ document.getElementById('clear-all').onclick = () => {
   location.reload();
 };
 
+/* ---------- install prompt ---------- */
+let installEvent = null;
+const $install = document.getElementById('install-btn');
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installEvent = e;
+  $install.hidden = false;
+});
+$install.onclick = async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  await installEvent.userChoice;
+  installEvent = null;
+  $install.hidden = true;
+};
+
 /* ---------- reminder loop ---------- */
 function checkReminders() {
   for (const r of popDueReminders()) {
-    const text = `⏰ Reminder: **${r.text}**`;
+    const text = `⏰ Reminder: **${r.text}**${r.repeat ? `\n(${repeatLabel(r.repeat)} — next one is queued)` : ''}`;
     ui.addBot({ text });
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Kalki reminder', { body: r.text, icon: 'icon-192.png' });

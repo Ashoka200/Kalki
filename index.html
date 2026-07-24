@@ -31,6 +31,7 @@
     <div id="chips"></div>
     <form id="composer" autocomplete="off">
       <input id="input" type="text" placeholder="Message Kalki…" aria-label="Message" maxlength="500">
+      <button id="mic" type="button" aria-label="Speak">🎙️</button>
       <button id="send" type="submit" aria-label="Send">➤</button>
     </form>
   </main>
@@ -74,13 +75,37 @@
       <label>Name <input id="p-name" type="text" placeholder="Your name"></label>
       <label>Home city <input id="p-city" type="text" placeholder="e.g. Austin"></label>
       <label>Monthly rent budget <input id="p-budget" type="number" min="0" placeholder="e.g. 1500"></label>
-      <p class="hint">Kalki uses this to pre-fill searches so you type less.</p>
+      <label>Region
+        <select id="p-region">
+          <option value="us">United States</option>
+          <option value="in">India</option>
+          <option value="uk">United Kingdom</option>
+          <option value="ca">Canada</option>
+          <option value="au">Australia</option>
+        </select>
+      </label>
+      <label class="check"><input id="p-tts" type="checkbox"> Speak replies aloud</label>
+      <p class="hint">Kalki uses this to pre-fill searches and pick the marketplaces that matter where you live.</p>
     </section>
 
     <h2>Notifications</h2>
     <section class="card">
       <button id="notif-btn" class="btn">Enable reminder notifications</button>
       <p class="hint" id="notif-state"></p>
+    </section>
+
+    <h2>Backup</h2>
+    <section class="card">
+      <p class="hint">Move Kalki to a new phone: export everything to a file, import it there.</p>
+      <button id="export-btn" class="btn">Export my data</button>
+      <button id="import-btn" class="btn ghost">Import a backup</button>
+      <input id="import-file" type="file" accept="application/json" hidden>
+    </section>
+
+    <h2>App</h2>
+    <section class="card">
+      <button id="install-btn" class="btn" hidden>Install Kalki on this device</button>
+      <p class="hint">If the button is hidden, use your browser menu → "Add to Home Screen".</p>
     </section>
 
     <h2>Storage</h2>

@@ -41,6 +41,25 @@ export const store = {
   },
 };
 
+/** Snapshot of everything Kalki has stored, for backup files. */
+export function exportData() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith(NS)) data[k.slice(NS.length)] = JSON.parse(localStorage.getItem(k));
+  }
+  return { app: 'kalki', version: 1, exportedAt: new Date().toISOString(), data };
+}
+
+/** Restore a backup made by exportData(). Replaces current data. */
+export function importData(backup) {
+  if (!backup || backup.app !== 'kalki' || typeof backup.data !== 'object') {
+    throw new Error('not a kalki backup');
+  }
+  store.clearAll();
+  for (const [k, v] of Object.entries(backup.data)) store.set(k, v);
+}
+
 export function fmtBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

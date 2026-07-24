@@ -98,6 +98,14 @@ export function addUser(text) {
   scrollDown();
 }
 
+/** Speak a bot reply aloud (opt-in via Settings). Markdown/emoji stripped. */
+export function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  const plain = text.replace(/\*\*/g, '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').split('\n')[0];
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(plain));
+}
+
 /** Render a bot response after a short "typing…" beat. */
 export function addBot(resp, onDone) {
   const typing = el('div', 'typing', 'Kalki is typing…');
@@ -110,6 +118,7 @@ export function addBot(resp, onDone) {
     persist(m);
     renderMsg(m);
     showChips(resp.chips || []);
+    if (store.get('profile', {}).tts) speak(resp.text);
     scrollDown();
     if (onDone) onDone(resp);
   }, 350);
@@ -117,6 +126,7 @@ export function addBot(resp, onDone) {
 
 export function showChips(chips, onPick) {
   $chips.textContent = '';
+  store.set('chips', chips); // survive reloads
   chips.forEach((label) => {
     const b = el('button', 'chip', label);
     b.type = 'button';
@@ -127,12 +137,41 @@ export function showChips(chips, onPick) {
 showChips.onPick = null;
 
 export function restore() {
-  store.get('messages', []).forEach(renderMsg);
+  const history = store.get('messages', []);
+  history.forEach(renderMsg);
+  const chips = store.get('chips', []);
+  if (chips.length) {
+    // render without re-persisting
+    chips.forEach((label) => {
+      const b = el('button', 'chip', label);
+      b.type = 'button';
+      b.onclick = () => showChips.onPick?.(label);
+      $chips.appendChild(b);
+    });
+  }
   scrollDown();
-  return store.get('messages', []).length;
+  return history.length;
 }
 
 export function clearChatView() {
   $messages.textContent = '';
   $chips.textContent = '';
+  store.remove('chips');
+}
+
+/* ---------- snackbar (undo etc.) ---------- */
+
+let snackTimer = null;
+export function snack(text, actionLabel, onAction) {
+  document.getElementById('snackbar')?.remove();
+  clearTimeout(snackTimer);
+  const bar = el('div', '', text);
+  bar.id = 'snackbar';
+  if (actionLabel) {
+    const btn = el('button', '', actionLabel);
+    btn.onclick = () => { bar.remove(); clearTimeout(snackTimer); onAction?.(); };
+    bar.appendChild(btn);
+  }
+  document.body.appendChild(bar);
+  snackTimer = setTimeout(() => bar.remove(), 5000);
 }

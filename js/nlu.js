@@ -3,11 +3,18 @@
 
 const INTENTS = [
   ['reminder',    /\b(remind(er)?s?)\b/g],
+  ['bills',       /\b(bills?|subscriptions?|renewals?|due date|utilit(y|ies))\b/g],
   ['rent',        /\b(rent(al)?s?|apartment|apartments|flat|studio|condo|lease|housing|house for rent)\b/g],
   ['insurance',   /\b(insurance|health plan|coverage|premium|deductible|medicaid|medicare|obamacare|aca)\b/g],
+  ['meds',        /\b(medications?|medicines?|prescriptions?|pharmacy|drug prices?|tablets?|generic drug)\b/g],
   ['appointment', /\b(appointment|doctor|dentist|hospital|clinic|check-?up|physician|specialist|dermatologist|cardiologist)\b/g],
   ['hotel',       /\b(hotels?|motel|hostel|resort|airbnb|lodging|accommodation|place to stay)\b/g],
   ['flight',      /\b(flights?|fly|flying|airfare|air ticket|plane ticket)\b/g],
+  ['rides',       /\b(rides?|uber|lyft|ola|rapido|taxi|cab|rideshare)\b/g],
+  ['groceries',   /\b(grocer(y|ies)|supermarket|vegetables|fruits|food delivery|instacart|bigbasket|blinkit)\b/g],
+  ['gas',         /\b(gas station|gas price|petrol|diesel|fuel|fill (up|the tank))\b/g],
+  ['usedcar',     /\b(used cars?|second ?hand cars?|buy a car|car deals?|pre-?owned)\b/g],
+  ['jobs',        /\b(jobs?|hiring|vacanc(y|ies)|internships?|career|resume|naukri)\b/g],
   ['events',      /\b(events?|festivals?|concerts?|gigs?|things to do|happening|carnival|fair|expo)\b/g],
   ['court',       /\b(courts?|turf|badminton|tennis|pickleball|basketball|futsal|squash|volleyball|cricket net|table tennis|ping pong)\b/g],
   ['reservation', /\b(reservation|reserve|restaurant|table|dine|dinner|lunch|brunch)\b/g],
@@ -46,9 +53,12 @@ const title = (s) => s.trim().replace(/[.!?]+$/, '').replace(/\b\w/g, (c) => c.t
 
 /* ---------- entity parsers ---------- */
 
-/** "$1,500" | "1500" | "1.5k" → 1500 (number) or null. */
+/** "$1,500" | "1500" | "1.5k" → 1500 (number) or null.
+    Rejects counts that aren't money ("2 bedrooms", "4 people"). */
 export function parseMoney(text) {
-  const m = String(text).match(/\$?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?/i);
+  const t = String(text);
+  if (/\d[\d,.]*\s*k?\s*(bed(room)?s?|br\b|people|persons?|guests?|nights?)/i.test(t)) return null;
+  const m = t.match(/\$?\s*(\d[\d,]*(?:\.\d+)?)\s*(k)?/i);
   if (!m) return null;
   let n = parseFloat(m[1].replace(/,/g, ''));
   if (m[2]) n *= 1000;
@@ -111,9 +121,15 @@ export function extractPartySize(text) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+/** US ZIP (5) or India PIN (6) inside free text. */
 export function extractZip(text) {
-  const m = text.match(/\b(\d{5})(?:-\d{4})?\b/);
+  const m = text.match(/\b(\d{5}(?:-\d{4})?|\d{6})\b/);
   return m ? m[1] : null;
+}
+/** Direct answer to the ZIP/PIN/postcode question — any postal format. */
+export function parsePostcode(text) {
+  const t = text.trim();
+  return /^[a-z0-9][a-z0-9 -]{2,9}$/i.test(t) ? t.toUpperCase() : null;
 }
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -123,8 +139,22 @@ const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', '
 export function parseDate(text, base = new Date()) {
   const t = text.toLowerCase();
   const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  if (/\bday after tomorrow\b/.test(t)) { d.setDate(d.getDate() + 2); return d; }
   if (/\btoday\b|\btonight\b/.test(t)) return d;
   if (/\btomorrow\b/.test(t)) { d.setDate(d.getDate() + 1); return d; }
+  let m = t.match(/\bin\s+(\d{1,3})\s*(days?|weeks?)\b/) || t.match(/\bin\s+(a|one)\s+(day|week)\b/);
+  if (m) {
+    const n = /^\d/.test(m[1]) ? +m[1] : 1;
+    d.setDate(d.getDate() + n * (/week/.test(m[2]) ? 7 : 1));
+    return d;
+  }
+  if (/\b(this|next|coming)?\s*week-?end\b/.test(t)) {
+    let diff = (6 - d.getDay() + 7) % 7; // upcoming Saturday (today if Saturday)
+    if (/\bnext week-?end\b/.test(t)) diff += 7;
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+  if (/\bend of (the )?month\b/.test(t)) return new Date(d.getFullYear(), d.getMonth() + 1, 0);
   for (let i = 0; i < 7; i++) {
     if (new RegExp('\\b' + DAYS[i].slice(0, 3) + '(' + DAYS[i].slice(3) + ')?\\b').test(t)) {
       const diff = (i - d.getDay() + 7) % 7 || 7;
@@ -132,7 +162,7 @@ export function parseDate(text, base = new Date()) {
       return d;
     }
   }
-  let m = t.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  m = t.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
   m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (m) {
@@ -168,6 +198,45 @@ export function parseTime(text) {
   if (/\bmorning\b/.test(t)) return { h: 9, m: 0 };
   if (/\bafternoon\b/.test(t)) return { h: 14, m: 0 };
   if (/\bevening\b|\btonight\b/.test(t)) return { h: 19, m: 0 };
+  return null;
+}
+
+/** Any point in time — relative ("in 20 minutes", "in 2 hours") or absolute
+    ("tomorrow 5pm", "friday"). → { when: Date, hasTime } or null. */
+export function parseWhen(text, base = new Date()) {
+  const t = text.toLowerCase();
+  let m = t.match(/\bin\s+(\d{1,3})\s*(min(?:ute)?s?|h(?:ou)?rs?)\b/)
+       || t.match(/\bin\s+(an?)\s+(hour|minute)\b/)
+       || t.match(/\bin\s+(half an)\s+(hour)\b/);
+  if (m) {
+    const n = /^\d/.test(m[1]) ? +m[1] : m[1] === 'half an' ? 0.5 : 1;
+    const ms = /h/.test(m[2][0]) || /hour/.test(m[2]) ? n * 3600e3 : n * 60e3;
+    return { when: new Date(base.getTime() + ms), hasTime: true };
+  }
+  const date = parseDate(t, base);
+  const time = parseTime(t);
+  if (date && time) {
+    const d = new Date(date);
+    d.setHours(time.h, time.m, 0, 0);
+    return { when: d, hasTime: true };
+  }
+  if (date) return { when: date, hasTime: false };
+  if (time) {
+    const d = new Date(base);
+    d.setHours(time.h, time.m, 0, 0);
+    if (d <= base) d.setDate(d.getDate() + 1); // that time already passed → tomorrow
+    return { when: d, hasTime: true };
+  }
+  return null;
+}
+
+/** "every day/friday/week/month" → 'daily' | 'weekly' | 'monthly' | null. */
+export function extractRepeat(text) {
+  const t = text.toLowerCase();
+  if (/\b(every ?day|daily|every (morning|night|evening))\b/.test(t)) return 'daily';
+  if (/\bevery\s+(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/.test(t)) return 'weekly';
+  if (/\b(every ?week|weekly)\b/.test(t)) return 'weekly';
+  if (/\b(every ?month|monthly)\b/.test(t)) return 'monthly';
   return null;
 }
 

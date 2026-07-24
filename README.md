@@ -1,44 +1,64 @@
 # Kalki — Personal Assistant (PWA)
 
 A 360° personal assistant that runs **entirely on your phone**: no AI API, no
-server, no accounts, no tracking. Total footprint ≈ 100 KB installed; user
+server, no accounts, no tracking. Total footprint ≈ 120 KB installed; user
 data typically stays under a few KB (chat history is capped at 200 messages).
 
 ## What it does
 
 | Skill | How it works |
 |---|---|
-| 🏠 **Rent deals** | Asks city / budget / bedrooms (or extracts them from one sentence), then opens pre-filtered searches on Zillow, Apartments.com, HotPads, FB Marketplace + negotiation tips |
+| 🏠 **Rent deals** | Asks city / budget / bedrooms (or extracts them from one sentence), then opens pre-filtered searches on the rental sites for *your region* + negotiation tips |
 | 🛍️ **Shopping deals** | Price comparison + price-history + coupon links for any item |
-| 🩺 **Health insurance** | Marketplace plan preview for your ZIP, subsidy calculator, Medicaid check + enrollment tips |
-| 🏨 **Hotels** | Date/guest-filled comparisons (Booking, Google Hotels, Kayak, Airbnb) + call-direct, AAA/loyalty and refundable-rebook tricks |
-| ✈️ **Flights** | Google Flights/Kayak/Skyscanner deep links, fare alerts, ±3 day and budget-carrier tips, student fares |
-| 🎪 **Events & festivals** | What's on in any area (Google Events, Eventbrite, AllEvents, Songkick) + free-entry and early-bird tricks |
-| 🏥 **Hospital appointments** | Books locally, exports `.ics` to your calendar, auto-reminds 24h before, Zocdoc handoff to find a doctor |
-| 🍽️ **Reservations** | Saves the table, `.ics` export, OpenTable handoff |
-| 🎾 **Game courts** | Tennis, badminton, basketball, pickleball… nearby courts, online booking, free public options; pencils in the game + reminder |
-| ⏰ **Reminders** | On-device notifications while the app is installed |
+| 🛒 **Groceries** | Compare delivery apps & store prices for an item or a whole list |
+| 🚗 **Rides** | Uber opens with your destination pre-set; regional apps (Ola, Lyft, Rapido) + fare tricks |
+| 🩺 **Health insurance** | Region-aware: marketplace + subsidies (US), Policybazaar/PM-JAY (India), NHS (UK)… |
+| 🏨 **Hotels** | Date/guest-filled comparisons + call-direct, loyalty and refundable-rebook tricks |
+| ✈️ **Flights** | Google Flights/Kayak/Skyscanner deep links + regional fare sites, alerts, ±3 day tips |
+| 💼 **Jobs** | Pre-filled searches on LinkedIn/Indeed + the board that matters locally (Naukri, Reed, SEEK…) |
+| 💊 **Medication prices** | GoodRx/CostPlus (US), 1mg/PharmEasy (India)… + generic-substitution tips |
+| ⛽ **Fuel prices** | Cheapest stations nearby, warehouse-club and cash-discount tips |
+| 🚙 **Used cars** | Inspected-car marketplaces per region + the negotiation rules that actually work |
+| 🎪 **Events & festivals** | What's on in any area + free-entry and early-bird tricks |
+| 🏥 **Hospital appointments** | Books locally, exports `.ics` **with a built-in alarm**, auto-reminds 24h before |
+| 🍽️ **Reservations** | Saves the table, `.ics` export, OpenTable/Zomato/EazyDiner handoff by region |
+| 🎾 **Game courts** | Nearby courts, online booking, free public options; pencils in the game + reminder |
+| 🧾 **Bill tracker** | "Track my electricity bill" → recurring due-date reminders + bill-negotiation scripts |
+| ⏰ **Reminders** | Understands "in 2 hours", "day after tomorrow", "every Friday 9am" — one-shot or repeating |
+
+**Regions:** a Settings switch (auto-detected from your browser locale) swaps
+every deal skill's marketplaces between 🇺🇸 US, 🇮🇳 India, 🇬🇧 UK, 🇨🇦 Canada and
+🇦🇺 Australia versions. Google-based links work everywhere as the baseline.
 
 **Price-tracking protection:** travel and shopping sites raise prices on
 repeat searches. Every deal reply warns about this, and each result card has
 a ⧉ button that copies the link so you can paste it into a private/incognito
-window (web apps aren't allowed to open incognito directly). Kalki itself
-sends nothing anywhere — links only ever open when you tap them.
+window. Kalki itself sends nothing anywhere — links only ever open when you
+tap them.
 
 It "thinks like a human" the cheap way: a rule-based NLU (`js/nlu.js`)
-extracts intents and entities (dates like *"friday"*, money like *"$1.8k"*,
-*"2br"*, party sizes, ZIP codes…), a slot-filling dialog manager
+extracts intents and entities (dates like *"day after tomorrow"*, relative
+times like *"in 20 minutes"*, money, *"2br"*, party sizes, postcodes,
+recurrence like *"every friday"*…), a slot-filling dialog manager
 (`js/brain.js`) asks **only** for what you didn't already say, and a profile
-(name, home city, budget — learned from conversation or set in Settings)
-pre-fills answers so repeat requests get shorter.
+(name, home city, budget, region — learned from conversation or set in
+Settings) pre-fills answers so repeat requests get shorter.
 
-## UI & themes
+## UI & extras
 
-WhatsApp-style chat, mobile-first. The **Theme studio** (⚙️) goes further
-than WhatsApp: 6 presets plus free-form accent / background / per-bubble
-colors, 5 wallpapers, text size and bubble roundness — with bubble text color
-auto-derived from luminance so any combination stays readable. Themes persist
-on-device.
+WhatsApp-style chat, mobile-first.
+
+- 🎙️ **Voice input** (Web Speech API, where the browser supports it) and an
+  optional **speak-replies-aloud** toggle.
+- **Theme studio** (⚙️): 6 presets plus free-form accent / background /
+  per-bubble colors, 5 wallpapers, text size and bubble roundness — bubble
+  text color auto-derived from luminance so any combination stays readable.
+- **Bookings tab**: reschedule inline (✏️), delete with **Undo**, calendar
+  export — the `.ics` carries a VALARM so the alarm fires from your calendar
+  app even when Kalki is closed.
+- **Backup**: export all data to a JSON file, import it on a new phone.
+- Quick-reply chips survive restarts; an install button appears when the
+  browser allows one-tap install.
 
 ## Storage discipline
 
@@ -55,7 +75,7 @@ Any static file server:
 python3 -m http.server 8080     # open http://localhost:8080
 ```
 
-On a phone: serve over HTTPS (any static host — GitHub Pages, Netlify,
+On a phone: serve over HTTPS (any static host — Netlify, GitHub Pages,
 Railway), open in the browser → "Add to Home Screen". It installs and works
 offline.
 
@@ -68,6 +88,7 @@ node --test tests/nlu.test.mjs
 ## Extending
 
 Add a skill in `js/skills.js` (slots + `finish()`), add its trigger regex in
-`js/nlu.js` — that's it. The architecture is deliberately pluggable: a future
-LLM backend could replace `nlu.js`/`brain.js` behind the same interfaces, but
-nothing requires one.
+`js/nlu.js`, and optionally a per-region link pack in `js/regions.js` —
+that's it. The architecture is deliberately pluggable: a future LLM backend
+could replace `nlu.js`/`brain.js` behind the same interfaces, but nothing
+requires one.
