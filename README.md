@@ -25,6 +25,16 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🎾 **Game courts** | Nearby courts, online booking, free public options; pencils in the game + reminder |
 | 🧾 **Bill tracker** | "Track my electricity bill" → recurring due-date reminders + bill-negotiation scripts |
 | ⏰ **Reminders** | Understands "in 2 hours", "day after tomorrow", "every Friday 9am" — one-shot or repeating |
+| 💰 **Expense tracker** | "Spent $40 on groceries" logs & auto-categorises; monthly summary vs budget, CSV export |
+| 📝 **Lists** | "Add milk to shopping list", "check off milk", any number of named lists |
+| ⏱️ **Timers** | "Set a timer for 10 minutes" — second-precision, rings in-app |
+| 🧮 **Quick math** | "15% tip on 84", "split 1840 between 4 with 10% tip", any arithmetic |
+| 🌅 **Morning brief** | "Good morning" → today's bookings & reminders, month spending vs budget, open lists |
+
+**Conversational memory:** after any deal search, tweak one thing —
+*"what about denver?"*, *"try a studio"*, *"now friday"* — and Kalki re-runs
+the search with just that slot changed. Typos are tolerated too
+(*"remnid me…"*, *"fligth"*) via an on-device fuzzy matcher.
 
 **Regions:** a Settings switch (auto-detected from your browser locale) swaps
 every deal skill's marketplaces between 🇺🇸 US, 🇮🇳 India, 🇬🇧 UK, 🇨🇦 Canada and

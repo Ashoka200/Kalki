@@ -2,7 +2,11 @@
    extraction. No network, no ML runtime — runs entirely on-device. */
 
 const INTENTS = [
+  ['timer',       /\b(timers?|countdown)\b/g],
   ['reminder',    /\b(remind(er)?s?)\b/g],
+  ['expense',     /\b(spent|expenses?|spending|paid\b|budget left|where.{0,10}money)\b/g],
+  ['list',        /\b(lists?)\b/g],
+  ['brief',       /\b(good morning|morning brief|brief me|my day|today'?s plan|what'?s (on )?today)\b/g],
   ['bills',       /\b(bills?|subscriptions?|renewals?|due date|utilit(y|ies))\b/g],
   ['rent',        /\b(rent(al)?s?|apartment|apartments|flat|studio|condo|lease|housing|house for rent)\b/g],
   ['insurance',   /\b(insurance|health plan|coverage|premium|deductible|medicaid|medicare|obamacare|aca)\b/g],
@@ -34,7 +38,50 @@ export function detect(text) {
     const score = (t.match(re) || []).length;
     if (score > bestScore) { best = intent; bestScore = score; }
   }
-  return best;
+  return best || fuzzyDetect(t);
+}
+
+/* Typo tolerance: when nothing matches exactly, compare each word against
+   a keyword lexicon allowing one edit ("remnid me", "grocry deals"). */
+const LEXICON = [
+  ['reminder', 'reminder'], ['remind', 'reminder'], ['apartment', 'rent'], ['rental', 'rent'],
+  ['hotel', 'hotel'], ['flight', 'flight'], ['flights', 'flight'], ['grocery', 'groceries'],
+  ['groceries', 'groceries'], ['doctor', 'appointment'], ['appointment', 'appointment'],
+  ['insurance', 'insurance'], ['medicine', 'meds'], ['medication', 'meds'], ['petrol', 'gas'],
+  ['events', 'events'], ['festival', 'events'], ['restaurant', 'reservation'],
+  ['reservation', 'reservation'], ['shopping', 'shopping'], ['budget', 'expense'],
+  ['expense', 'expense'], ['spending', 'expense'], ['timer', 'timer'],
+];
+
+function oneEditAway(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    // one substitution, or one adjacent transposition ("remnid" → "remind")
+    const diffs = [];
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diffs.push(i);
+    if (diffs.length <= 1) return true;
+    return diffs.length === 2 && diffs[1] === diffs[0] + 1
+      && a[diffs[0]] === b[diffs[1]] && a[diffs[1]] === b[diffs[0]];
+  }
+  // one insertion/deletion
+  const [long, short] = a.length > b.length ? [a, b] : [b, a];
+  let i = 0, j = 0, edits = 0;
+  while (i < long.length && j < short.length) {
+    if (long[i] === short[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    i++;
+  }
+  return true;
+}
+
+function fuzzyDetect(t) {
+  for (const word of t.split(/[^a-z]+/)) {
+    if (word.length < 5) continue;
+    for (const [kw, intent] of LEXICON) {
+      if (word !== kw && oneEditAway(word, kw)) return intent;
+    }
+  }
+  return null;
 }
 
 /** "my name is X" / "i live in Y" / "my budget is Z" — profile facts. */

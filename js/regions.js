@@ -263,3 +263,8 @@ export function marketCards(skill, s, profile = {}) {
 export function fuelWord() {
   return { us: 'gas', ca: 'gas', in: 'petrol', uk: 'petrol', au: 'petrol' }[getRegion()];
 }
+
+/** Local currency symbol — used for expense tracking output. */
+export function currencySymbol() {
+  return { us: '$', ca: '$', au: '$', uk: '£', in: '₹' }[getRegion()];
+}

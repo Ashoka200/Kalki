@@ -6,6 +6,7 @@ import * as ui from './ui.js';
 import { Brain } from './brain.js';
 import { REGIONS, getRegion } from './regions.js';
 import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor } from './skills.js';
+import { popDueTimers } from './personal.js';
 
 const brain = new Brain();
 theme.apply();
@@ -176,6 +177,7 @@ function renderSettings() {
   document.getElementById('p-name').value = p.name || '';
   document.getElementById('p-city').value = p.city || '';
   document.getElementById('p-budget').value = p.budget || '';
+  document.getElementById('p-spend').value = p.spendBudget || '';
   document.getElementById('p-region').value = getRegion();
   document.getElementById('p-tts').checked = !!p.tts;
   document.getElementById('storage-used').textContent = `Using ${fmtBytes(store.usage())}.`;
@@ -195,7 +197,7 @@ document.querySelectorAll('[data-theme]').forEach((inp) => {
 document.getElementById('theme-reset').onclick = () => { theme.resetTheme(); renderSettings(); };
 
 /* ---------- settings: profile / region / voice ---------- */
-for (const [id, key] of [['p-name', 'name'], ['p-city', 'city'], ['p-budget', 'budget']]) {
+for (const [id, key] of [['p-name', 'name'], ['p-city', 'city'], ['p-budget', 'budget'], ['p-spend', 'spendBudget']]) {
   document.getElementById(id).onchange = (e) => {
     const v = e.target.type === 'number' ? +e.target.value || null : e.target.value.trim() || null;
     brain.setProfile({ [key]: v });
@@ -272,6 +274,16 @@ function checkReminders() {
 }
 checkReminders();
 setInterval(checkReminders, 30 * 1000);
+
+/* ---------- timer loop (second precision) ---------- */
+setInterval(() => {
+  for (const t of popDueTimers()) {
+    ui.addBot({ text: `⏱️ **Time’s up!** (${t.label})` });
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Kalki timer', { body: `${t.label} — time's up!`, icon: 'icon-192.png' });
+    }
+  }
+}, 1000);
 
 /* ---------- PWA ---------- */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

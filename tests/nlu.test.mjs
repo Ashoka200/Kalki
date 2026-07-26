@@ -158,3 +158,88 @@ test('postcode answers accept international formats', () => {
   assert.equal(nlu.parsePostcode('SW1A 1AA'), 'SW1A 1AA');
   assert.equal(nlu.parsePostcode('this is not a postcode at all'), null);
 });
+
+/* ---------- v4: personal skills ---------- */
+const personal = await import('../js/personal.js');
+
+test('v4 intents', () => {
+  assert.equal(nlu.detect('spent $40 on groceries today'), 'expense'); // beats groceries keyword tie
+  assert.equal(nlu.detect('show my spending'), 'expense');
+  assert.equal(nlu.detect('add milk to shopping list'), 'list'); // beats shopping
+  assert.equal(nlu.detect('set a timer for 10 minutes'), 'timer');
+  assert.equal(nlu.detect('good morning'), 'brief'); // brief outranks greet
+  assert.equal(nlu.detect('hello there'), 'greet');
+});
+
+test('typo tolerance', () => {
+  assert.equal(nlu.detect('remnid me to call mom'), 'reminder');
+  assert.equal(nlu.detect('order some grocries'), 'groceries');
+  assert.equal(nlu.detect('grocry deals please'), 'shopping'); // exact keyword ("deals") beats fuzzy
+  assert.equal(nlu.detect('book a fligth'), 'flight');
+  assert.equal(nlu.detect('zzzz qqqq'), null); // garbage stays unknown
+});
+
+test('expense parsing + categories', () => {
+  assert.deepEqual(personal.parseExpense('spent $40 on groceries'), { amt: 40, note: 'groceries', cat: 'groceries' });
+  assert.equal(personal.parseExpense('paid 250 for chai').cat, 'food');
+  assert.equal(personal.parseExpense('add expense 120 uber').cat, 'transport');
+  assert.equal(personal.parseExpense('spent 1.5k on new phone').amt, 1500);
+  assert.equal(personal.parseExpense('nothing to log here'), null);
+});
+
+test('expense store + summary + csv', () => {
+  localStorage._m.clear();
+  personal.addExpense({ amt: 40, note: 'groceries', cat: 'groceries' });
+  personal.addExpense({ amt: 250, note: 'chai', cat: 'food' });
+  personal.addExpense({ amt: 60, note: 'petrol', cat: 'transport' });
+  const s = personal.summarize(personal.monthExpenses());
+  assert.equal(s.total, 350);
+  assert.equal(s.cats[0][0], 'food'); // biggest category first
+  const csv = personal.expensesCSV(personal.monthExpenses());
+  assert.ok(csv.startsWith('date,amount,category,note'));
+  assert.ok(csv.includes('250,food,"chai"'));
+  localStorage._m.clear();
+});
+
+test('list commands', () => {
+  localStorage._m.clear();
+  assert.deepEqual(personal.parseListCmd('add milk to shopping list'), { op: 'add', item: 'milk', list: 'shopping' });
+  assert.deepEqual(personal.parseListCmd('add sunscreen to my packing list'), { op: 'add', item: 'sunscreen', list: 'packing' });
+  assert.deepEqual(personal.parseListCmd('show my packing list'), { op: 'show', list: 'packing' });
+  assert.equal(personal.parseListCmd('check off milk').op, 'check');
+  assert.equal(personal.parseListCmd('remove milk from shopping list').op, 'remove');
+  assert.equal(personal.parseListCmd('my lists').op, 'overview');
+  assert.equal(personal.parseListCmd('just chatting about lists of things'), null);
+
+  personal.runListCmd({ op: 'add', item: 'milk', list: 'shopping' });
+  personal.runListCmd({ op: 'add', item: 'rice', list: 'shopping' });
+  personal.runListCmd({ op: 'check', item: 'milk', list: 'shopping' });
+  const shown = personal.runListCmd({ op: 'show', list: 'shopping' });
+  assert.ok(shown.text.includes('☑ milk'));
+  assert.ok(shown.text.includes('☐ rice'));
+  assert.ok(shown.text.includes('(1 to go)'));
+  localStorage._m.clear();
+});
+
+test('timers', () => {
+  localStorage._m.clear();
+  assert.equal(personal.parseTimer('set a timer for 10 minutes'), 600);
+  assert.equal(personal.parseTimer('timer for 45 seconds'), 45);
+  assert.equal(personal.parseTimer('2 hour timer'), 7200);
+  assert.equal(personal.parseTimer('no timer words that parse'), null);
+  personal.addTimer(0.001, 'test');
+  const due = personal.popDueTimers(Date.now() + 100);
+  assert.equal(due.length, 1);
+  assert.equal(personal.listTimers().length, 0);
+  localStorage._m.clear();
+});
+
+test('quick math', () => {
+  assert.ok(personal.quickMath('15% tip on 84').includes('12.6'));
+  assert.ok(personal.quickMath('15% tip on 84').includes('96.6'));
+  assert.ok(personal.quickMath('20% of 250').includes('50'));
+  assert.ok(personal.quickMath('split 1840 between 4').includes('460'));
+  assert.ok(personal.quickMath('split 100 between 4 with 10% tip').includes('27.5'));
+  assert.ok(personal.quickMath("what's 45*12").includes('540'));
+  assert.equal(personal.quickMath('tell me about paris'), null);
+});

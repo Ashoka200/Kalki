@@ -65,6 +65,18 @@ function renderCard(card) {
       b.onclick = () => downloadICS(booking);
       c.appendChild(b);
     }
+  } else if (card.dl) {
+    const b = el('button', 'icsbtn', 'Save');
+    b.type = 'button';
+    b.onclick = () => {
+      const blob = new Blob([card.dl.content], { type: card.dl.mime || 'text/plain' });
+      const a = el('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = card.dl.name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+    c.appendChild(b);
   }
   return c;
 }
