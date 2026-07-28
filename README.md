@@ -32,7 +32,7 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🌅 **Morning brief** | "Good morning" → today's bookings & reminders, month spending vs budget, open lists |
 | 💪 **Habits** | "Track habit workout", then "did workout" daily — 🔥 streaks and totals |
 | 🔎 **Chat search** | "Search chat for rent" finds past conversations |
-| 🧠 **Claude brain (opt-in)** | Paste your own Anthropic API key in Settings and unmatched questions are answered by Claude — straight from your device to Anthropic, no middleman. Everything else keeps working fully offline without it |
+| 🧠 **AI brain (zero setup)** | On the hosted site, questions the built-in skills can't handle are answered by Claude automatically — a bundled serverless function (`netlify/functions/ask.mjs`) holds the site's API key, so **users never configure anything**. A personal key in Settings is an optional override for the single-file/offline build |
 | 🔒 **PIN lock** | Optional 4–8 digit PIN asked on launch (privacy gate, not encryption) |
 
 **Conversational memory:** after any deal search, tweak one thing —
@@ -80,6 +80,15 @@ WhatsApp-style chat, mobile-first.
 - Everything in namespaced `localStorage` keys; chat capped at 200 messages;
   Settings shows exact bytes used, with **Clear chat** / **Erase all data**.
 - Service worker pre-caches the shell → works fully offline after first load.
+
+## Deploying the AI brain
+
+The repo ships a Netlify Function at `netlify/functions/ask.mjs` serving
+`/api/ask`. After connecting the repo in Netlify, set **one** environment
+variable on the site — `ANTHROPIC_API_KEY` (Site configuration →
+Environment variables) — and every visitor gets Claude answers with no
+setup. Without the variable the endpoint returns 503 and the app quietly
+falls back to its built-in replies; all other features are unaffected.
 
 ## Run
 

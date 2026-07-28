@@ -95,10 +95,11 @@
       <p class="hint" id="notif-state"></p>
     </section>
 
-    <h2>Claude brain (optional)</h2>
+    <h2>AI brain</h2>
     <section class="card">
-      <label>Anthropic API key <input id="p-apikey" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
-      <p class="hint">Everything Kalki does works without this. Add your own key from console.anthropic.com and questions the built-in skills can't handle get answered by Claude — sent directly from this device to Anthropic, nowhere else. The key stays in this device's storage only.</p>
+      <p class="hint">On the hosted Kalki site the AI brain works automatically over the internet — no setup. Questions the built-in skills can't handle are answered by Claude through the site's own backend.</p>
+      <label>Personal API key (optional override) <input id="p-apikey" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
+      <p class="hint">Only needed for the single-file/offline version, or to use your own Anthropic account. Stays in this device's storage; calls go straight to Anthropic.</p>
     </section>
 
     <h2>Privacy</h2>

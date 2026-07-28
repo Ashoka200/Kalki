@@ -67,9 +67,10 @@ async function send(text) {
   if (!t) return;
   ui.addUser(t);
   const resp = brain.handle(t);
-  // Unmatched message + a configured Claude API key → ask Claude instead
-  // of showing the generic fallback.
-  if (resp?.llmQuery && llm.hasKey()) {
+  // Unmatched message → ask Claude (hosted backend by default, personal
+  // key if the user set one). Falls back to the built-in reply when no
+  // AI is reachable.
+  if (resp?.llmQuery && llm.enabled()) {
     ui.typing(true);
     try {
       const reply = await llm.ask(resp.llmQuery);
@@ -77,7 +78,8 @@ async function send(text) {
       ui.addBot({ text: reply });
     } catch (e) {
       ui.typing(false);
-      ui.addBot({ text: `${resp.text}\n\n(🧠 Claude couldn’t help: ${e.message})`, chips: resp.chips });
+      if (e.unavailable) botRespond(resp); // no backend on this build — plain fallback
+      else ui.addBot({ text: `${resp.text}\n\n(🧠 Claude couldn’t help: ${e.message})`, chips: resp.chips });
     }
     return;
   }

@@ -1,4 +1,11 @@
 # Netlify config: Kalki is static files at the repo root — no build step.
 # Connect this repo in Netlify and it redeploys on every push to main.
+#
+# The AI brain: netlify/functions/ask.mjs serves /api/ask. Set the site's
+# ANTHROPIC_API_KEY environment variable (Site configuration → Environment
+# variables) and every visitor gets Claude answers with zero setup.
 [build]
   publish = "."
+
+[functions]
+  directory = "netlify/functions"
