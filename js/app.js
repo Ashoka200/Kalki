@@ -7,9 +7,42 @@ import { Brain } from './brain.js';
 import { REGIONS, getRegion } from './regions.js';
 import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor } from './skills.js';
 import { popDueTimers } from './personal.js';
+import * as llm from './llm.js';
 
 const brain = new Brain();
 theme.apply();
+
+/* ---------- PIN lock ---------- */
+
+// Not encryption — a shoulder-surfing gate. Data stays readable in devtools.
+async function hashPin(pin) {
+  if (crypto?.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('kalki:' + pin));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 5381; // djb2 fallback for non-secure contexts
+  for (const c of 'kalki:' + pin) h = ((h * 33) ^ c.charCodeAt(0)) >>> 0;
+  return 'x' + h.toString(16);
+}
+
+function showLock() {
+  const overlay = document.createElement('div');
+  overlay.id = 'lock';
+  overlay.innerHTML = '<div class="lockbox"><div class="lockicon">🔒</div><p>Enter your PIN</p><input type="password" inputmode="numeric" maxlength="8" aria-label="PIN"><p class="lockerr" hidden>Wrong PIN</p></div>';
+  document.body.appendChild(overlay);
+  const inp = overlay.querySelector('input');
+  inp.oninput = async () => {
+    if (inp.value.length < 4) return;
+    if (await hashPin(inp.value) === store.get('profile', {}).pinHash) {
+      overlay.remove();
+    } else if (inp.value.length >= 6) {
+      overlay.querySelector('.lockerr').hidden = false;
+      inp.value = '';
+    }
+  };
+  inp.focus();
+}
+if (store.get('profile', {}).pinHash) showLock();
 
 /* ---------- views ---------- */
 const views = { chat: 'view-chat', bookings: 'view-bookings', settings: 'view-settings' };
@@ -29,11 +62,26 @@ function botRespond(resp) {
   ui.addBot(resp, (r) => { if (r.open) show(r.open); });
 }
 
-function send(text) {
+async function send(text) {
   const t = text.trim();
   if (!t) return;
   ui.addUser(t);
-  botRespond(brain.handle(t));
+  const resp = brain.handle(t);
+  // Unmatched message + a configured Claude API key → ask Claude instead
+  // of showing the generic fallback.
+  if (resp?.llmQuery && llm.hasKey()) {
+    ui.typing(true);
+    try {
+      const reply = await llm.ask(resp.llmQuery);
+      ui.typing(false);
+      ui.addBot({ text: reply });
+    } catch (e) {
+      ui.typing(false);
+      ui.addBot({ text: `${resp.text}\n\n(🧠 Claude couldn’t help: ${e.message})`, chips: resp.chips });
+    }
+    return;
+  }
+  botRespond(resp);
 }
 
 document.getElementById('composer').onsubmit = (e) => {
@@ -180,6 +228,8 @@ function renderSettings() {
   document.getElementById('p-spend').value = p.spendBudget || '';
   document.getElementById('p-region').value = getRegion();
   document.getElementById('p-tts').checked = !!p.tts;
+  document.getElementById('p-apikey').value = p.apiKey || '';
+  document.getElementById('pin-state').textContent = p.pinHash ? 'PIN is set. Enter a new one to change it, or clear the field and press enter to remove.' : 'No PIN set.';
   document.getElementById('storage-used').textContent = `Using ${fmtBytes(store.usage())}.`;
   document.getElementById('notif-state').textContent =
     !('Notification' in window) ? 'Not supported in this browser.' : `Status: ${Notification.permission}`;
@@ -205,6 +255,23 @@ for (const [id, key] of [['p-name', 'name'], ['p-city', 'city'], ['p-budget', 'b
 }
 document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
 document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
+document.getElementById('p-apikey').onchange = (e) => {
+  brain.setProfile({ apiKey: e.target.value.trim() || null });
+  ui.snack(e.target.value.trim() ? '🧠 Claude brain enabled.' : 'Claude brain disabled.');
+};
+document.getElementById('p-pin').onchange = async (e) => {
+  const v = e.target.value.trim();
+  if (!v) {
+    brain.setProfile({ pinHash: null });
+    ui.snack('PIN removed.');
+  } else if (/^\d{4,8}$/.test(v)) {
+    brain.setProfile({ pinHash: await hashPin(v) });
+    ui.snack('PIN set — Kalki will ask for it on launch.');
+  } else {
+    ui.snack('PIN must be 4–8 digits.');
+  }
+  e.target.value = '';
+};
 
 document.getElementById('notif-btn').onclick = async () => {
   if ('Notification' in window) await Notification.requestPermission();

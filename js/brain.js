@@ -9,7 +9,7 @@ import * as personal from './personal.js';
 import { currencySymbol } from './regions.js';
 import { store } from './store.js';
 
-const MAIN_CHIPS = ['Morning brief', 'My spending', 'Shopping list', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
+const MAIN_CHIPS = ['Morning brief', 'My spending', 'Shopping list', 'My habits', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
 
 /* Deal searches remember their last run so "what about mumbai?" works. */
 const DEAL_SKILLS = new Set(['rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
@@ -65,6 +65,18 @@ export class Brain {
       return { text: r.text, chips: listCmd.op === 'show' ? ['Clear shopping list', 'My lists'] : undefined };
     }
 
+    // Habit commands ("track habit workout", "did workout", "my habits").
+    const habitCmd = personal.parseHabitCmd(t);
+    if (habitCmd) {
+      const r = personal.runHabitCmd(habitCmd);
+      // "did X" for an unknown X falls through to normal understanding.
+      if (!r?.unknown) return { text: r.text, chips: habitCmd.op !== 'add' ? ['My habits', 'Help'] : undefined };
+    }
+
+    // Chat search ("search chat for rent").
+    const query = personal.parseSearchCmd(t);
+    if (query) return { text: personal.searchChat(query) };
+
     // "Remind me 2 hours before" — relative to the booking just made
     // (or the next upcoming one), no flow needed.
     const rel = t.match(/^remind me\s+(\d+|an?|half an)\s*(min(?:ute)?s?|h(?:ou)?rs?|days?)\s+before\b/i);
@@ -115,13 +127,16 @@ export class Brain {
         return this.brief();
       case 'help':
         return {
-          text: 'Here’s my full range:\n\n**🌅 Morning brief** — say “good morning”: today’s plan, spending, lists\n**💰 Spending** — “spent $40 on groceries” logs it; “my spending” shows the month vs budget\n**📝 Lists** — “add milk to shopping list”, “check off milk”, any number of named lists\n**⏱️ Timers** — “set a timer for 10 minutes”\n**🧮 Math** — “15% tip on 84”, “split 1840 between 4”, any arithmetic\n**🏠 Rent · 🛍️ Shopping · 🛒 Groceries · 🚗 Rides · 🏨 Hotels · ✈️ Flights** — deals with your region’s marketplaces\n**💼 Jobs · 💊 Medication · ⛽ Fuel · 🚙 Used cars · 🩺 Insurance** — more region-aware deal hunting\n**🎪 Events · 🏥 Appointments · 🍽️ Reservations · 🎾 Courts** — find & book, calendar export with alarms\n**🧾 Bills** — recurring due-date reminders + negotiation scripts\n**⏰ Reminders** — “in 2 hours”, “every Friday 9am”, “remind me 2 hours before”\n\nAfter any search, tweak it: “**what about mumbai?**”, “**try 2 bedrooms**”.\n\n🕵️ Deal links have a ⧉ copy button — paste into a **private window** so sites can’t inflate prices.\n\nI learn too: “my name is …”, “I live in …”. Set **region** in ⚙️ Settings. Say **cancel** to stop any flow.',
+          text: 'Here’s my full range:\n\n**🌅 Morning brief** — say “good morning”: today’s plan, spending, lists\n**💰 Spending** — “spent $40 on groceries” logs it; “my spending” shows the month vs budget\n**📝 Lists** — “add milk to shopping list”, “check off milk”, any number of named lists\n**💪 Habits** — “track habit workout”, then “did workout” daily; streaks with 🔥\n**🔎 Chat search** — “search chat for rent”\n**⏱️ Timers** — “set a timer for 10 minutes”\n**🧮 Math** — “15% tip on 84”, “split 1840 between 4”, any arithmetic\n**🧠 Ask anything** — add your Claude API key in ⚙️ Settings and I’ll answer questions my built-in skills can’t\n**🏠 Rent · 🛍️ Shopping · 🛒 Groceries · 🚗 Rides · 🏨 Hotels · ✈️ Flights** — deals with your region’s marketplaces\n**💼 Jobs · 💊 Medication · ⛽ Fuel · 🚙 Used cars · 🩺 Insurance** — more region-aware deal hunting\n**🎪 Events · 🏥 Appointments · 🍽️ Reservations · 🎾 Courts** — find & book, calendar export with alarms\n**🧾 Bills** — recurring due-date reminders + negotiation scripts\n**⏰ Reminders** — “in 2 hours”, “every Friday 9am”, “remind me 2 hours before”\n\nAfter any search, tweak it: “**what about mumbai?**”, “**try 2 bedrooms**”.\n\n🕵️ Deal links have a ⧉ copy button — paste into a **private window** so sites can’t inflate prices.\n\nI learn too: “my name is …”, “I live in …”. Set **region** in ⚙️ Settings. Say **cancel** to stop any flow.',
           chips: MAIN_CHIPS,
         };
       default:
+        // With a Claude API key configured, unmatched messages go to Claude
+        // (app.js handles the async call); otherwise the plain fallback.
         return {
           text: 'I didn’t quite catch that. I’m best at deals, spending, lists, bookings and reminders — pick one below or say **help**.',
           chips: MAIN_CHIPS,
+          llmQuery: t,
         };
     }
   }

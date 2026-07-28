@@ -172,6 +172,105 @@ export function fmtDur(seconds) {
   return `${(seconds / 3600).toFixed(1).replace('.0', '')} h`;
 }
 
+/* ---------- habits ---------- */
+
+const dayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Parse a habit command → { op, name? } or null.
+    'log' only fires for names that exist (checked in runHabitCmd). */
+export function parseHabitCmd(text) {
+  const t = text.trim();
+  let m = t.match(/^(?:start\s+)?track(?:ing)?\s+(?:a\s+)?(?:new\s+)?habit:?\s+(.+)$/i)
+       || t.match(/^(?:add|new)\s+habit:?\s+(.+)$/i);
+  if (m) return { op: 'add', name: m[1].toLowerCase() };
+  m = t.match(/^(?:stop tracking|drop|remove)\s+(?:habit\s+)?(.+?)(?:\s+habit)?$/i);
+  if (m && /habit/i.test(t)) return { op: 'remove', name: m[1].toLowerCase() };
+  if (/^(?:show\s+)?(?:my\s+)?(?:habits?|streaks?)$/i.test(t)) return { op: 'show' };
+  m = t.match(/^(?:i\s+)?(?:did|done|completed?|logged?)\s+(?:my\s+)?(.+?)(?:\s+today)?[.!]?$/i);
+  if (m) return { op: 'log', name: m[1].toLowerCase() };
+  return null;
+}
+
+const getHabits = () => store.get('habits', {});
+const setHabits = (h) => store.set('habits', h);
+
+/** Consecutive-day streak ending today or yesterday. */
+export function streakOf(days, now = new Date()) {
+  const set = new Set(days);
+  const d = new Date(now);
+  if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1); // today not logged yet → count from yesterday
+  let n = 0;
+  while (set.has(dayKey(d))) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
+export function runHabitCmd(cmd, now = new Date()) {
+  const habits = getHabits();
+  switch (cmd.op) {
+    case 'add': {
+      if (habits[cmd.name]) return { done: false, text: `Already tracking **${cmd.name}**.` };
+      habits[cmd.name] = [];
+      setHabits(habits);
+      return { done: true, text: `Tracking **${cmd.name}** 💪 — tell me “did ${cmd.name}” each day you do it and I’ll keep your streak.` };
+    }
+    case 'log': {
+      if (!(cmd.name in habits)) return { done: false, unknown: true };
+      const today = dayKey(now);
+      if (habits[cmd.name].includes(today)) {
+        return { done: true, text: `Already logged **${cmd.name}** today. 🔥 Streak: **${streakOf(habits[cmd.name], now)}**.` };
+      }
+      habits[cmd.name].push(today);
+      setHabits(habits);
+      const s = streakOf(habits[cmd.name], now);
+      return { done: true, text: `Logged ✅ **${cmd.name}** — 🔥 streak: **${s} day${s > 1 ? 's' : ''}** (${habits[cmd.name].length} total).` };
+    }
+    case 'remove': {
+      if (!(cmd.name in habits)) return { done: false, text: `Not tracking “${cmd.name}”.` };
+      delete habits[cmd.name];
+      setHabits(habits);
+      return { done: true, text: `Stopped tracking **${cmd.name}**.` };
+    }
+    case 'show': {
+      const names = Object.keys(habits);
+      if (!names.length) return { done: false, text: 'No habits yet. Say “**track habit workout**” to start one.' };
+      const lines = names.map((n) => {
+        const s = streakOf(habits[n], now);
+        return `${s > 0 ? '🔥' : '⚪'} **${cap(n)}** — ${s} day streak (${habits[n].length} total)`;
+      });
+      return { done: true, text: 'Your habits:\n\n' + lines.join('\n') };
+    }
+  }
+}
+
+/* ---------- chat search ---------- */
+
+/** "search chat for rent" → query, or null. Requires the chat/history word
+    so it never hijacks deal searches like "search for flights". */
+export function parseSearchCmd(text) {
+  const m = text.trim().match(/^(?:search|find)\s+(?:my\s+)?(?:chat|messages?|history)\s+(?:for\s+)?(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+export function searchChat(query) {
+  const q = query.toLowerCase();
+  const hits = store.get('messages', [])
+    .filter((m) => m.t && m.t.toLowerCase().includes(q)
+      && !/^(?:search|find)\s+(?:my\s+)?(?:chat|messages?|history)/i.test(m.t))
+    .slice(-5)
+    .reverse();
+  if (!hits.length) return `Nothing in the chat matches “${query}”.`;
+  const lines = hits.map((m) => {
+    const when = new Date(m.ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const text = m.t.replace(/\*\*/g, '').replace(/\s+/g, ' ').slice(0, 80);
+    return `${m.r === 'u' ? '🙂' : '🤖'} ${when}: ${text}${m.t.length > 80 ? '…' : ''}`;
+  });
+  return `Found ${hits.length} match${hits.length > 1 ? 'es' : ''} for “${query}”:\n\n${lines.join('\n')}`;
+}
+
 /* ---------- quick math ---------- */
 
 /** Tip/split/percent/arithmetic → answer string, or null. */

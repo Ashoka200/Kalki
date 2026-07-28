@@ -1,8 +1,8 @@
 /* Offline-first service worker: pre-caches the whole app (it's tiny) and
    serves from cache, falling back to network. Bump VERSION on release. */
-const VERSION = 'kalki-v4';
+const VERSION = 'kalki-v5';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/brain.js',
-  'js/skills.js', 'js/nlu.js', 'js/regions.js', 'js/personal.js', 'js/theme.js', 'js/store.js', 'manifest.webmanifest',
+  'js/skills.js', 'js/nlu.js', 'js/regions.js', 'js/personal.js', 'js/llm.js', 'js/theme.js', 'js/store.js', 'manifest.webmanifest',
   'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

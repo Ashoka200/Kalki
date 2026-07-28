@@ -95,6 +95,18 @@
       <p class="hint" id="notif-state"></p>
     </section>
 
+    <h2>Claude brain (optional)</h2>
+    <section class="card">
+      <label>Anthropic API key <input id="p-apikey" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
+      <p class="hint">Everything Kalki does works without this. Add your own key from console.anthropic.com and questions the built-in skills can't handle get answered by Claude — sent directly from this device to Anthropic, nowhere else. The key stays in this device's storage only.</p>
+    </section>
+
+    <h2>Privacy</h2>
+    <section class="card">
+      <label>App PIN (4–8 digits) <input id="p-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Set a PIN, press enter"></label>
+      <p class="hint" id="pin-state"></p>
+    </section>
+
     <h2>Backup</h2>
     <section class="card">
       <p class="hint">Move Kalki to a new phone: export everything to a file, import it there.</p>

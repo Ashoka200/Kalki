@@ -118,6 +118,18 @@ export function speak(text) {
   speechSynthesis.speak(new SpeechSynthesisUtterance(plain));
 }
 
+/** Persistent typing indicator for slow (network) replies. */
+let $typing = null;
+export function typing(on) {
+  $typing?.remove();
+  $typing = null;
+  if (on) {
+    $typing = el('div', 'typing', 'Kalki is thinking…');
+    $messages.appendChild($typing);
+    scrollDown();
+  }
+}
+
 /** Render a bot response after a short "typing…" beat. */
 export function addBot(resp, onDone) {
   const typing = el('div', 'typing', 'Kalki is typing…');

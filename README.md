@@ -30,6 +30,10 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | ⏱️ **Timers** | "Set a timer for 10 minutes" — second-precision, rings in-app |
 | 🧮 **Quick math** | "15% tip on 84", "split 1840 between 4 with 10% tip", any arithmetic |
 | 🌅 **Morning brief** | "Good morning" → today's bookings & reminders, month spending vs budget, open lists |
+| 💪 **Habits** | "Track habit workout", then "did workout" daily — 🔥 streaks and totals |
+| 🔎 **Chat search** | "Search chat for rent" finds past conversations |
+| 🧠 **Claude brain (opt-in)** | Paste your own Anthropic API key in Settings and unmatched questions are answered by Claude — straight from your device to Anthropic, no middleman. Everything else keeps working fully offline without it |
+| 🔒 **PIN lock** | Optional 4–8 digit PIN asked on launch (privacy gate, not encryption) |
 
 **Conversational memory:** after any deal search, tweak one thing —
 *"what about denver?"*, *"try a studio"*, *"now friday"* — and Kalki re-runs

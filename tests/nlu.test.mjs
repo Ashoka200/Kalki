@@ -243,3 +243,45 @@ test('quick math', () => {
   assert.ok(personal.quickMath("what's 45*12").includes('540'));
   assert.equal(personal.quickMath('tell me about paris'), null);
 });
+
+/* ---------- v5: habits, chat search ---------- */
+
+test('habit command parsing', () => {
+  assert.deepEqual(personal.parseHabitCmd('track habit workout'), { op: 'add', name: 'workout' });
+  assert.deepEqual(personal.parseHabitCmd('start tracking a habit: reading'), { op: 'add', name: 'reading' });
+  assert.deepEqual(personal.parseHabitCmd('did workout'), { op: 'log', name: 'workout' });
+  assert.deepEqual(personal.parseHabitCmd('I completed my reading today'), { op: 'log', name: 'reading' });
+  assert.equal(personal.parseHabitCmd('my habits').op, 'show');
+  assert.equal(personal.parseHabitCmd('stop tracking workout habit').op, 'remove');
+  assert.equal(personal.parseHabitCmd('find me an apartment'), null);
+  assert.equal(personal.parseHabitCmd('track my electricity bill'), null); // bills, not habits
+});
+
+test('habit streaks', () => {
+  localStorage._m.clear();
+  const day = (offset) => {
+    const d = new Date(2026, 6, 26);
+    d.setDate(d.getDate() + offset);
+    return d;
+  };
+  personal.runHabitCmd({ op: 'add', name: 'workout' });
+  personal.runHabitCmd({ op: 'log', name: 'workout' }, day(-2));
+  personal.runHabitCmd({ op: 'log', name: 'workout' }, day(-1));
+  const r = personal.runHabitCmd({ op: 'log', name: 'workout' }, day(0));
+  assert.ok(r.text.includes('3 day'));
+  // unknown habit falls through
+  assert.equal(personal.runHabitCmd({ op: 'log', name: 'juggling' }).unknown, true);
+  // streak survives when today isn't logged yet (counts from yesterday)
+  assert.equal(personal.streakOf(['2026-07-24', '2026-07-25'], new Date(2026, 6, 26)), 2);
+  // broken streak resets
+  assert.equal(personal.streakOf(['2026-07-20'], new Date(2026, 6, 26)), 0);
+  localStorage._m.clear();
+});
+
+test('chat search parsing', () => {
+  assert.equal(personal.parseSearchCmd('search chat for rent'), 'rent');
+  assert.equal(personal.parseSearchCmd('find my messages for austin'), 'austin');
+  assert.equal(personal.parseSearchCmd('search history budget'), 'budget');
+  assert.equal(personal.parseSearchCmd('search for flights to delhi'), null); // deal search, not chat search
+  assert.equal(personal.parseSearchCmd('find me an apartment'), null);
+});
