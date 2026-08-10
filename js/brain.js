@@ -91,8 +91,10 @@ export class Brain {
       return { text: `Will do ✅ — I’ll nudge you ${rel[1]} ${rel[2]} before **${target.title}** (${fmtWhen(new Date(at).toISOString())}).`, chips: ['Show my bookings', 'Help'] };
     }
 
-    // Follow-up tweak to the last deal search: "what about mumbai?"
-    const follow = t.match(/^(?:what about|how about|try|same (?:but|for)|now)\s+(.+?)\??$/i);
+    // Follow-up tweak to the last deal search: "what about mumbai?",
+    // "around UNLV", "near downtown" — re-runs it with that slot changed.
+    const follow = t.match(/^(?:what about|how about|try|same (?:but|for)|now)\s+(.+?)\??$/i)
+      || (/^(?:around|near|in|closer to|close to)\s+(?!\d)(.+?)\??$/i.test(t) && t.match(/^(?:around|near|in|closer to|close to)\s+(.+?)\??$/i));
     if (follow && this.lastDeal) {
       const tweaked = this.tweakLastDeal(follow[1]);
       if (tweaked) return tweaked;
