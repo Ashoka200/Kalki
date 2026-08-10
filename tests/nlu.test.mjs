@@ -285,3 +285,34 @@ test('chat search parsing', () => {
   assert.equal(personal.parseSearchCmd('search for flights to delhi'), null); // deal search, not chat search
   assert.equal(personal.parseSearchCmd('find me an apartment'), null);
 });
+
+/* ---------- v6: free internet answers ---------- */
+const web = await import('../js/web.js');
+
+test('web query parsing', () => {
+  localStorage._m.clear();
+  assert.deepEqual(web.parseWebQuery('weather in Austin'), { kind: 'weather', city: 'Austin' });
+  assert.deepEqual(web.parseWebQuery("what's the weather like in New Delhi?"), { kind: 'weather', city: 'New Delhi' });
+  assert.equal(web.parseWebQuery('weather').city, null); // no profile city set
+  store.set('profile', { city: 'Pune' });
+  assert.equal(web.parseWebQuery('weather').city, 'Pune');
+  store.set('profile', {});
+
+  assert.deepEqual(web.parseWebQuery('convert 100 usd to inr'), { kind: 'currency', amount: 100, from: 'USD', to: 'INR' });
+  assert.deepEqual(web.parseWebQuery('2,500 EUR in GBP'), { kind: 'currency', amount: 2500, from: 'EUR', to: 'GBP' });
+
+  assert.deepEqual(web.parseWebQuery('bitcoin price'), { kind: 'crypto', coin: 'bitcoin' });
+  assert.deepEqual(web.parseWebQuery('how much is eth?'), { kind: 'crypto', coin: 'ethereum' });
+
+  assert.deepEqual(web.parseWebQuery('define serendipity'), { kind: 'define', word: 'serendipity' });
+  assert.deepEqual(web.parseWebQuery('what does ubiquitous mean'), { kind: 'define', word: 'ubiquitous' });
+
+  assert.deepEqual(web.parseWebQuery('who is Marie Curie?'), { kind: 'wiki', topic: 'Marie Curie' });
+  assert.deepEqual(web.parseWebQuery('what is a black hole'), { kind: 'wiki', topic: 'black hole' });
+
+  // must NOT hijack other skills
+  assert.equal(web.parseWebQuery('find me an apartment'), null);
+  assert.equal(web.parseWebQuery('remind me to call mom'), null);
+  assert.equal(web.parseWebQuery('spent $40 on groceries'), null);
+  localStorage._m.clear();
+});

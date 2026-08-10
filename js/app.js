@@ -8,6 +8,7 @@ import { REGIONS, getRegion } from './regions.js';
 import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor } from './skills.js';
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';
+import * as web from './web.js';
 
 const brain = new Brain();
 theme.apply();
@@ -67,6 +68,35 @@ async function send(text) {
   if (!t) return;
   ui.addUser(t);
   const resp = brain.handle(t);
+  // Free internet answers (weather, currency, crypto, define, what-is) —
+  // keyless public services, fetched right here in the browser.
+  if (resp?.web) {
+    ui.typing(true);
+    try {
+      const a = await web.answer(resp.web);
+      ui.typing(false);
+      ui.addBot(a);
+    } catch (e) {
+      ui.typing(false);
+      if (e.offline) {
+        ui.addBot({ text: '🌐 I need internet for that one and you seem to be offline. Everything else still works!' });
+      } else if (e.notFound && llm.enabled()) {
+        // Wikipedia came up empty — let Claude take a shot if available.
+        try {
+          ui.typing(true);
+          const reply = await llm.ask(t);
+          ui.typing(false);
+          ui.addBot({ text: reply });
+        } catch {
+          ui.typing(false);
+          ui.addBot({ text: e.message });
+        }
+      } else {
+        ui.addBot({ text: e.message });
+      }
+    }
+    return;
+  }
   // Unmatched message → ask Claude (hosted backend by default, personal
   // key if the user set one). Falls back to the built-in reply when no
   // AI is reachable.

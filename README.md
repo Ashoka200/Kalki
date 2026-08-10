@@ -32,6 +32,7 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🌅 **Morning brief** | "Good morning" → today's bookings & reminders, month spending vs budget, open lists |
 | 💪 **Habits** | "Track habit workout", then "did workout" daily — 🔥 streaks and totals |
 | 🔎 **Chat search** | "Search chat for rent" finds past conversations |
+| 🌐 **Live answers (free, no key)** | "Weather in Austin", "convert 100 usd to inr", "bitcoin price", "define serendipity", "who is Marie Curie" — answered live from free keyless public services (Open-Meteo, Frankfurter, CoinGecko, dictionaryapi.dev, Wikipedia), fetched straight from the browser |
 | 🧠 **AI brain (zero setup)** | On the hosted site, questions the built-in skills can't handle are answered by Claude automatically — a bundled serverless function (`netlify/functions/ask.mjs`) holds the site's API key, so **users never configure anything**. A personal key in Settings is an optional override for the single-file/offline build |
 | 🔒 **PIN lock** | Optional 4–8 digit PIN asked on launch (privacy gate, not encryption) |
 

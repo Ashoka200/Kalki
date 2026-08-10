@@ -6,10 +6,11 @@
 import * as nlu from './nlu.js';
 import { SKILLS, reminderSeed, cleanSeed, listBookings, listReminders, fmtWhen, repeatLabel, addReminder, iconFor } from './skills.js';
 import * as personal from './personal.js';
+import { parseWebQuery } from './web.js';
 import { currencySymbol } from './regions.js';
 import { store } from './store.js';
 
-const MAIN_CHIPS = ['Morning brief', 'My spending', 'Shopping list', 'My habits', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
+const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 'My habits', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
 
 /* Deal searches remember their last run so "what about mumbai?" works. */
 const DEAL_SKILLS = new Set(['rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
@@ -77,6 +78,11 @@ export class Brain {
     const query = personal.parseSearchCmd(t);
     if (query) return { text: personal.searchChat(query) };
 
+    // Free internet answers — weather, currency, crypto, define, what/who is.
+    // No API key involved; app.js runs the fetch (keyless public services).
+    const webQ = parseWebQuery(t);
+    if (webQ) return { web: webQ };
+
     // "Remind me 2 hours before" — relative to the booking just made
     // (or the next upcoming one), no flow needed.
     const rel = t.match(/^remind me\s+(\d+|an?|half an)\s*(min(?:ute)?s?|h(?:ou)?rs?|days?)\s+before\b/i);
@@ -129,7 +135,7 @@ export class Brain {
         return this.brief();
       case 'help':
         return {
-          text: 'Here’s my full range:\n\n**🌅 Morning brief** — say “good morning”: today’s plan, spending, lists\n**💰 Spending** — “spent $40 on groceries” logs it; “my spending” shows the month vs budget\n**📝 Lists** — “add milk to shopping list”, “check off milk”, any number of named lists\n**💪 Habits** — “track habit workout”, then “did workout” daily; streaks with 🔥\n**🔎 Chat search** — “search chat for rent”\n**⏱️ Timers** — “set a timer for 10 minutes”\n**🧮 Math** — “15% tip on 84”, “split 1840 between 4”, any arithmetic\n**🧠 Ask anything** — add your Claude API key in ⚙️ Settings and I’ll answer questions my built-in skills can’t\n**🏠 Rent · 🛍️ Shopping · 🛒 Groceries · 🚗 Rides · 🏨 Hotels · ✈️ Flights** — deals with your region’s marketplaces\n**💼 Jobs · 💊 Medication · ⛽ Fuel · 🚙 Used cars · 🩺 Insurance** — more region-aware deal hunting\n**🎪 Events · 🏥 Appointments · 🍽️ Reservations · 🎾 Courts** — find & book, calendar export with alarms\n**🧾 Bills** — recurring due-date reminders + negotiation scripts\n**⏰ Reminders** — “in 2 hours”, “every Friday 9am”, “remind me 2 hours before”\n\nAfter any search, tweak it: “**what about mumbai?**”, “**try 2 bedrooms**”.\n\n🕵️ Deal links have a ⧉ copy button — paste into a **private window** so sites can’t inflate prices.\n\nI learn too: “my name is …”, “I live in …”. Set **region** in ⚙️ Settings. Say **cancel** to stop any flow.',
+          text: 'Here’s my full range:\n\n**🌅 Morning brief** — say “good morning”: today’s plan, spending, lists\n**💰 Spending** — “spent $40 on groceries” logs it; “my spending” shows the month vs budget\n**📝 Lists** — “add milk to shopping list”, “check off milk”, any number of named lists\n**💪 Habits** — “track habit workout”, then “did workout” daily; streaks with 🔥\n**🔎 Chat search** — “search chat for rent”\n**⏱️ Timers** — “set a timer for 10 minutes”\n**🧮 Math** — “15% tip on 84”, “split 1840 between 4”, any arithmetic\n**🌐 Live answers (free, no key)** — “weather in Austin”, “convert 100 usd to inr”, “bitcoin price”, “define serendipity”, “who is Marie Curie” — answered from free public services\n**🧠 Ask anything** — on the hosted site, other questions are answered by Claude automatically\n**🏠 Rent · 🛍️ Shopping · 🛒 Groceries · 🚗 Rides · 🏨 Hotels · ✈️ Flights** — deals with your region’s marketplaces\n**💼 Jobs · 💊 Medication · ⛽ Fuel · 🚙 Used cars · 🩺 Insurance** — more region-aware deal hunting\n**🎪 Events · 🏥 Appointments · 🍽️ Reservations · 🎾 Courts** — find & book, calendar export with alarms\n**🧾 Bills** — recurring due-date reminders + negotiation scripts\n**⏰ Reminders** — “in 2 hours”, “every Friday 9am”, “remind me 2 hours before”\n\nAfter any search, tweak it: “**what about mumbai?**”, “**try 2 bedrooms**”.\n\n🕵️ Deal links have a ⧉ copy button — paste into a **private window** so sites can’t inflate prices.\n\nI learn too: “my name is …”, “I live in …”. Set **region** in ⚙️ Settings. Say **cancel** to stop any flow.',
           chips: MAIN_CHIPS,
         };
       default:
