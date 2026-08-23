@@ -4,7 +4,7 @@
    Also owns the single-turn skills: expenses, lists, timers, quick math,
    the morning brief, and follow-up tweaks to the last deal search. */
 import * as nlu from './nlu.js';
-import { SKILLS, reminderSeed, cleanSeed, listBookings, listReminders, fmtWhen, repeatLabel, addReminder, iconFor } from './skills.js';
+import { SKILLS, reminderSeed, cleanSeed, listBookings, listReminders, fmtWhen, repeatLabel, addReminder, iconFor, setBookingStatus } from './skills.js';
 import * as personal from './personal.js';
 import { parseWebQuery } from './web.js';
 import { currencySymbol } from './regions.js';
@@ -61,6 +61,25 @@ export class Brain {
         return { text: 'Okay, cancelled. What else can I do?', chips: MAIN_CHIPS };
       }
       return this.fillSlot(t);
+    }
+
+    // Booking request tracking: "request sent" → follow up if unconfirmed;
+    // "mark confirmed" → done.
+    const track = t.match(/^(?:i've |ive |i )?(request(?:ed)?(?: sent)?|sent(?: the)? request|mark(?: as)? confirmed|confirmed|it's confirmed)\b/i);
+    if (track) {
+      const target = this.lastBooking || listBookings().find((b) => new Date(b.when) > new Date());
+      if (!target) return { text: 'Nothing to track yet — save an appointment or table first.', chips: MAIN_CHIPS };
+      const confirming = /confirm/i.test(track[1]);
+      setBookingStatus(target.id, confirming ? 'confirmed' : 'requested');
+      if (confirming) {
+        return { text: `✅ **${target.title}** is confirmed — I’ll still remind you 24h before.`, chips: ['Show my bookings', 'Help'] };
+      }
+      const followUp = new Date(Math.min(Date.now() + 24 * 3600e3, new Date(target.when).getTime() - 3600e3));
+      if (followUp > new Date()) addReminder(`Did ${target.place || target.title} confirm your booking?`, followUp.toISOString());
+      return {
+        text: `📨 Noted — request sent for **${target.title}**.\nI’ll check back with you ${fmtWhen(followUp.toISOString())} if it isn’t confirmed by then. Say “**mark confirmed**” once they reply.`,
+        chips: ['Mark confirmed', 'Show my bookings'],
+      };
     }
 
     const chat = this.smallTalk(t);

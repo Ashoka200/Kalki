@@ -5,12 +5,13 @@ import * as theme from './theme.js';
 import * as ui from './ui.js';
 import { Brain } from './brain.js';
 import { REGIONS, getRegion } from './regions.js';
-import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged } from './skills.js';
+import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged, STATUS_LABEL } from './skills.js';
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';
 import * as web from './web.js';
 import { splitCompound } from './personal.js';
 import * as push from './push.js';
+import { lookupVenue, requestMessage, contactCards } from './venues.js';
 
 const brain = new Brain();
 theme.apply();
@@ -136,6 +137,33 @@ async function handleOne(t) {
     return;
   }
   botRespond(resp);
+  if (resp?.venueLookup) enrichWithVenue(resp.venueLookup);
+}
+
+/* Find the venue's real contact details, then offer one-tap ways to send
+   a complete booking request. Silent when offline or not found. */
+async function enrichWithVenue(v) {
+  const venue = await lookupVenue(v.name, v.area);
+  const p = brain.profile;
+  const msg = requestMessage({
+    what: v.what, when: v.when, place: venue?.name || v.name,
+    party: v.party, name: p.name, phone: p.phone,
+  });
+  const missing = !p.name || !p.phone;
+  if (!venue?.phone && !venue?.website) {
+    ui.addBot({
+      text: `I couldn’t find contact details for **${v.name}** automatically. Search them below, then tell me “**request sent**” and I’ll track it.`,
+      cards: [{ t: `🔎 Find ${v.name}`, s: 'Phone, hours, booking page', url: `https://www.google.com/search?q=${encodeURIComponent(v.name + ' ' + v.area + ' phone booking')}` },
+              { t: '✉️ Email the request', s: 'Opens your mail app', url: `mailto:?subject=${encodeURIComponent(v.title)}&body=${encodeURIComponent(msg)}` }],
+      chips: ['Request sent', 'Show my bookings'],
+    });
+    return;
+  }
+  ui.addBot({
+    text: `📇 Found **${venue.name}**${venue.address ? `\n${venue.address}` : ''}${venue.phone ? `\n📞 ${venue.phone}` : ''}\n\nI’ve written your booking request${missing ? ' (add your name & phone in ⚙️ Settings so they’re included)' : ''} — one tap sends it:`,
+    cards: contactCards(venue, msg, v.title),
+    chips: ['Request sent', 'Mark confirmed', 'Show my bookings'],
+  });
 }
 
 document.getElementById('composer').onsubmit = (e) => {
@@ -203,6 +231,7 @@ function renderBookings() {
     row.querySelector('.t').textContent = it.label;
     row.querySelector('.s').textContent = fmtWhen(it.when)
       + (it.place ? ' · ' + it.place : '')
+      + (it.isBooking && it.status && it.status !== 'saved' ? ' · ' + (STATUS_LABEL[it.status] || it.status) : '')
       + (it.repeat ? ' · ' + repeatLabel(it.repeat) : '');
     const actions = row.querySelector('.actions');
 
@@ -277,6 +306,7 @@ function renderSettings() {
 
   const p = brain.profile;
   document.getElementById('p-name').value = p.name || '';
+  document.getElementById('p-phone').value = p.phone || '';
   document.getElementById('p-city').value = p.city || '';
   document.getElementById('p-budget').value = p.budget || '';
   document.getElementById('p-spend').value = p.spendBudget || '';
@@ -301,7 +331,7 @@ document.querySelectorAll('[data-theme]').forEach((inp) => {
 document.getElementById('theme-reset').onclick = () => { theme.resetTheme(); renderSettings(); };
 
 /* ---------- settings: profile / region / voice ---------- */
-for (const [id, key] of [['p-name', 'name'], ['p-city', 'city'], ['p-budget', 'budget'], ['p-spend', 'spendBudget']]) {
+for (const [id, key] of [['p-name', 'name'], ['p-phone', 'phone'], ['p-city', 'city'], ['p-budget', 'budget'], ['p-spend', 'spendBudget']]) {
   document.getElementById(id).onchange = (e) => {
     const v = e.target.type === 'number' ? +e.target.value || null : e.target.value.trim() || null;
     brain.setProfile({ [key]: v });

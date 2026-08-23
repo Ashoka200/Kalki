@@ -33,6 +33,12 @@ export function addBooking(b) {
   store.set('bookings', all);
   return b;
 }
+export const STATUS_LABEL = { saved: '📌 saved', requested: '📨 request sent', confirmed: '✅ confirmed' };
+
+export function setBookingStatus(id, status) {
+  updateBooking(id, { status });
+}
+
 export function updateBooking(id, patch) {
   store.set('bookings', store.get('bookings', []).map((b) => (b.id === id ? { ...b, ...patch } : b)));
 }
@@ -540,11 +546,14 @@ export const SKILLS = {
         text: `Saved to your schedule 📌 **${b.title}** — ${fmtWhen(when)}${b.place ? ` at ${b.place}` : ''}, with a reminder 24h before.\n\n⚠️ **I can’t book with the clinic itself** — no name, email or payment ever leaves this device. Use the links below (or call them) to confirm the slot; this entry keeps you on time.`,
         cards: [
           { t: 'Add to calendar', s: fmtWhen(when), ics: b.id },
-          emailCard(b.title, when, b.place || ''),
           ...marketCards('appointment', s, ctx.profile),
           { t: 'Clinics nearby', s: `${cap(s.specialty)} options around you`, url: `https://www.google.com/maps/search/${enc(s.specialty + ' near ' + (ctx.profile.city || 'me'))}` },
         ],
         chips: ['Remind me 2 hours before', 'Show my bookings', 'Help'],
+        venueLookup: {
+          bookingId: b.id, name: s.place || `${s.specialty} clinic`, area: ctx.profile.city || '',
+          what: `a ${s.specialty} appointment`, when: fmtWhen(when), title: b.title,
+        },
       };
     },
   },
@@ -565,10 +574,13 @@ export const SKILLS = {
         text: `Saved to your schedule 📌 **${b.title}** — ${fmtWhen(when)}.\n\n⚠️ **The restaurant doesn’t know yet** — confirm the table online or by phone below; I’ll keep you on time.`,
         cards: [
           { t: 'Add to calendar', s: fmtWhen(when), ics: b.id },
-          emailCard(b.title, when, s.venue),
           ...marketCards('reservation', s),
         ],
         chips: ['Remind me 2 hours before', 'Show my bookings', 'Help'],
+        venueLookup: {
+          bookingId: b.id, name: s.venue, area: ctx.profile.city || '',
+          what: `a table for ${s.size}`, when: fmtWhen(when), party: s.size, title: b.title,
+        },
       };
     },
   },
