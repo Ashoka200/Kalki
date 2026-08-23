@@ -116,6 +116,12 @@ export function buildICS(booking) {
     'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
 }
 
+/** "Email me the details" card — opens the user's own mail app, no server. */
+function emailCard(title, when, place, extra = '') {
+  const body = `${enc(title)}%0D%0AWhen: ${enc(fmtWhen(when))}${place ? '%0D%0AWhere: ' + enc(place) : ''}${extra ? '%0D%0A' + enc(extra) : ''}%0D%0A%0D%0A(from Kalki)`;
+  return { t: '✉️ Email me the details', s: 'Opens your mail app, pre-filled', url: `mailto:?subject=${enc(title)}&body=${body}` };
+}
+
 export function fmtWhen(iso) {
   return new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
@@ -531,9 +537,10 @@ export const SKILLS = {
       ctx.remindBefore(b);
       ctx.noteBooking(b);
       return {
-        text: `Booked ✅ **${b.title}** — ${fmtWhen(when)}${b.place ? ` at ${b.place}` : ''}.\nI’ll remind you 24h before. Add it to your calendar below (the calendar alarm works even when Kalki is closed).`,
+        text: `Saved to your schedule 📌 **${b.title}** — ${fmtWhen(when)}${b.place ? ` at ${b.place}` : ''}, with a reminder 24h before.\n\n⚠️ **I can’t book with the clinic itself** — no name, email or payment ever leaves this device. Use the links below (or call them) to confirm the slot; this entry keeps you on time.`,
         cards: [
           { t: 'Add to calendar', s: fmtWhen(when), ics: b.id },
+          emailCard(b.title, when, b.place || ''),
           ...marketCards('appointment', s, ctx.profile),
           { t: 'Clinics nearby', s: `${cap(s.specialty)} options around you`, url: `https://www.google.com/maps/search/${enc(s.specialty + ' near ' + (ctx.profile.city || 'me'))}` },
         ],
@@ -555,9 +562,10 @@ export const SKILLS = {
       const b = addBooking({ kind: 'reservation', title: `${cap(s.venue)} — table for ${s.size}`, when, place: s.venue });
       ctx.noteBooking(b);
       return {
-        text: `Noted ✅ **${b.title}** — ${fmtWhen(when)}.\nConfirm the table online or by phone, then add it to your calendar.`,
+        text: `Saved to your schedule 📌 **${b.title}** — ${fmtWhen(when)}.\n\n⚠️ **The restaurant doesn’t know yet** — confirm the table online or by phone below; I’ll keep you on time.`,
         cards: [
           { t: 'Add to calendar', s: fmtWhen(when), ics: b.id },
+          emailCard(b.title, when, s.venue),
           ...marketCards('reservation', s),
         ],
         chips: ['Remind me 2 hours before', 'Show my bookings', 'Help'],

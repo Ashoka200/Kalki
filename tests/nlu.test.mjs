@@ -352,7 +352,7 @@ test('mid-flow answers are fully mined (the blood-test chat)', () => {
   // mined from one message — only the optional place question remains.
   assert.ok(r2.text.includes('Which hospital or clinic?'), r2.text);
   const r3 = b.handle('skip');
-  assert.ok(r3.text.includes('Booked ✅'), r3.text);
+  assert.ok(r3.text.includes('Saved to your schedule'), r3.text);
   assert.ok(r3.text.includes('Blood test'), r3.text);
   assert.ok(r3.text.includes('12:00 PM'), r3.text);
   localStorage._m.clear();
