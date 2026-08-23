@@ -23,6 +23,8 @@ export class Brain {
     this.lastBooking = null; // most recent booking made this session
     this.lastDeal = null; // { id, values } of the last completed deal search
     this.context = {}; // cross-turn memory (e.g. last mentioned place)
+    this.lastOffers = null; // live flight offers awaiting a "book flight N"
+    this.pendingOffer = null; // the offer being booked
   }
 
   get profile() { return store.get('profile', {}); }
@@ -80,6 +82,15 @@ export class Brain {
         text: `📨 Noted — request sent for **${target.title}**.\nI’ll check back with you ${fmtWhen(followUp.toISOString())} if it isn’t confirmed by then. Say “**mark confirmed**” once they reply.`,
         chips: ['Mark confirmed', 'Show my bookings'],
       };
+    }
+
+    // "book flight 2" → start the passenger-details flow for that offer.
+    const pick = t.match(/^book (?:flight|option|number)?\s*#?(\d{1,2})$/i);
+    if (pick && this.lastOffers?.length) {
+      const offer = this.lastOffers[+pick[1] - 1];
+      if (!offer) return { text: `I only have ${this.lastOffers.length} fares from that search — pick 1–${this.lastOffers.length}.` };
+      this.pendingOffer = offer;
+      return this.startFlow('flightbook', '');
     }
 
     const chat = this.smallTalk(t);

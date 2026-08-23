@@ -65,6 +65,11 @@ function renderCard(card) {
       b.onclick = () => downloadICS(booking);
       c.appendChild(b);
     }
+  } else if (card.act) {
+    const b = el('button', 'icsbtn', card.actLabel || 'Go');
+    b.type = 'button';
+    b.onclick = () => showChips.onPick?.(card.act);
+    c.appendChild(b);
   } else if (card.dl) {
     const b = el('button', 'icsbtn', 'Save');
     b.type = 'button';

@@ -5,13 +5,14 @@ import * as theme from './theme.js';
 import * as ui from './ui.js';
 import { Brain } from './brain.js';
 import { REGIONS, getRegion } from './regions.js';
-import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged, STATUS_LABEL } from './skills.js';
+import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged, STATUS_LABEL, addBooking } from './skills.js';
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';
 import * as web from './web.js';
 import { splitCompound } from './personal.js';
 import * as push from './push.js';
 import { lookupVenue, requestMessage, contactCards } from './venues.js';
+import * as flights from './flights.js';
 
 const brain = new Brain();
 theme.apply();
@@ -138,6 +139,55 @@ async function handleOne(t) {
   }
   botRespond(resp);
   if (resp?.venueLookup) enrichWithVenue(resp.venueLookup);
+  if (resp?.flightSearch) liveFlightSearch(resp.flightSearch);
+  if (resp?.bookFlight) completeBooking(resp.bookFlight);
+}
+
+/* Real fares from the airlines, via Kalki's own backend. */
+async function liveFlightSearch(params) {
+  const cap = await flights.capability();
+  if (!cap.live) return; // no backend configured — deep links stand alone
+  ui.typing(true);
+  try {
+    const { offers, mode } = await flights.search(params);
+    ui.typing(false);
+    if (!offers?.length) { ui.addBot({ text: 'No live fares came back for those dates — the links above still work.' }); return; }
+    brain.lastOffers = offers;
+    ui.addBot({
+      text: `✈️ **Live fares** ${offers[0].from} → ${offers[0].to}${mode === 'test' ? '\n🧪 *Test mode — real airline data, but no money and no ticket.*' : ''}\n\nTap **Book** on any fare:`,
+      cards: offers.map(flights.offerCard),
+      chips: ['Book flight 1', 'Show my bookings'],
+    });
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: `Couldn’t load live fares (${e.message}). The links above still work.` });
+  }
+}
+
+async function completeBooking({ passenger }) {
+  const offer = brain.pendingOffer;
+  if (!offer) { ui.addBot({ text: 'That fare expired — search again and I’ll pull fresh ones.' }); return; }
+  ui.typing(true);
+  try {
+    const r = await flights.book({
+      offerId: offer.id, amount: offer.price, currency: offer.currency,
+      passengerIds: offer.passengerIds, passenger,
+    });
+    ui.typing(false);
+    // Remember the traveller so the next booking is one tap.
+    brain.setProfile({ firstName: passenger.given_name, lastName: passenger.family_name,
+      bornOn: passenger.born_on, email: passenger.email, phone: passenger.phone_number });
+    const b = addBooking({ kind: 'flight', title: `${offer.airline} ${offer.from}→${offer.to}`, when: offer.departs, place: offer.from, status: 'confirmed' });
+    ui.addBot({
+      text: `🎟️ **Booked — reference ${r.reference}**\n${offer.airline}, ${offer.from} → ${offer.to}, ${new Date(offer.departs).toLocaleString()}\n${r.mode === 'test' ? '\n🧪 *Test booking: this is a sandbox order — no charge, and it is not a real ticket.*' : ''}`,
+      cards: [{ t: 'Add to calendar', s: new Date(offer.departs).toLocaleString(), ics: b.id }],
+      chips: ['Show my bookings', 'Help'],
+    });
+    brain.pendingOffer = null;
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: `Booking failed: ${e.message}` });
+  }
 }
 
 /* Find the venue's real contact details, then offer one-tap ways to send

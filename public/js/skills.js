@@ -19,7 +19,7 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
    into a private window. */
 const PRIVACY_TIP = '\n\n🕵️ **Open links in a private/incognito window** — these sites track repeat searches and quietly raise prices. Tap ⧉ to copy a link, then paste it in incognito.';
 
-export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳' }[kind] || '📌');
+export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳', flight: '✈️' }[kind] || '📌');
 
 /* ---------- saved bookings & reminders ---------- */
 
@@ -232,6 +232,28 @@ export const SKILLS = {
           { t: 'Skyscanner', s: '"Cheapest month" tool', url: 'https://www.skyscanner.com/' },
         ],
         chips: ['Book a hotel', 'Remind me to check fares Friday', 'Help'],
+        flightSearch: { from: s.from, to: s.to, date: dep, returnDate: ret, passengers: 1 },
+      };
+    },
+  },
+
+  flightbook: {
+    intro: 'Let’s get you booked. ✈️',
+    slots: [
+      { ...textSlot('given_name', 'Passenger’s first name (exactly as on their ID)?'), profileKey: 'firstName' },
+      { ...textSlot('family_name', 'Last name?'), profileKey: 'lastName' },
+      { name: 'born_on', q: 'Date of birth? (e.g. 1987-07-24)',
+        extract: () => null, parse: (t) => nlu.parseDate(t), profileKey: 'bornOn' },
+      { ...textSlot('email', 'Email for the confirmation?'), profileKey: 'email' },
+      { ...textSlot('phone_number', 'Phone number? (e.g. +1 702 555 0100)'), profileKey: 'phone' },
+    ],
+    finish(s, ctx) {
+      const born = s.born_on instanceof Date ? iso(s.born_on) : String(s.born_on).slice(0, 10);
+      return {
+        text: `Booking **${ctx.pendingOffer?.airline} ${ctx.pendingOffer?.currency} ${ctx.pendingOffer?.price}** for ${s.given_name} ${s.family_name}…`,
+        bookFlight: {
+          passenger: { given_name: s.given_name, family_name: s.family_name, born_on: born, email: s.email, phone_number: s.phone_number },
+        },
       };
     },
   },
