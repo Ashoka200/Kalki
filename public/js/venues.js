@@ -45,7 +45,7 @@ export async function lookupVenue(name, area = '') {
 }
 
 /** Digits-only phone for tel:/wa.me links. */
-export const dialable = (phone) => (phone || '').replace(/[^\d+]/g, '');
+const dialable = (phone) => (phone || '').replace(/[^\d+]/g, '');
 
 /** The message actually sent to the venue. */
 export function requestMessage({ what, when, place, party, name, phone }) {

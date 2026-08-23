@@ -6,9 +6,9 @@
    regions.js; Google-based links here work everywhere. */
 import { store } from './store.js';
 import * as nlu from './nlu.js';
-import { marketCards, fuelWord, getRegion } from './regions.js';
+import { marketCards, fuelWord } from './regions.js';
 import { runListCmd } from './personal.js';
-import { hasResume, matchReport, jobMeta, coverLetter, addApplication } from './resume.js';
+import { matchReport, jobMeta, coverLetter, addApplication } from './resume.js';
 
 const enc = encodeURIComponent;
 const slug = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
@@ -121,12 +121,6 @@ export function buildICS(booking) {
     // Alarm fires from the calendar app even when Kalki is closed.
     'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${booking.title}`, 'TRIGGER:-PT24H', 'END:VALARM',
     'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
-}
-
-/** "Email me the details" card — opens the user's own mail app, no server. */
-function emailCard(title, when, place, extra = '') {
-  const body = `${enc(title)}%0D%0AWhen: ${enc(fmtWhen(when))}${place ? '%0D%0AWhere: ' + enc(place) : ''}${extra ? '%0D%0A' + enc(extra) : ''}%0D%0A%0D%0A(from Kalki)`;
-  return { t: '✉️ Email me the details', s: 'Opens your mail app, pre-filled', url: `mailto:?subject=${enc(title)}&body=${body}` };
 }
 
 export function fmtWhen(iso) {

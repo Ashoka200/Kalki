@@ -21,7 +21,7 @@ const MODEL = 'claude-opus-5';
 // a spinner on every unmatched message.
 let hostedDown = false;
 
-export const hasKey = () => !!store.get('profile', {}).apiKey;
+const hasKey = () => !!store.get('profile', {}).apiKey;
 export const enabled = () => hasKey() || !hostedDown;
 
 const unavailable = (msg) => Object.assign(new Error(msg), { unavailable: true });

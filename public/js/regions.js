@@ -7,9 +7,9 @@ import { store } from './store.js';
 const enc = encodeURIComponent;
 const slug = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
 
-export const REGIONS = { us: 'United States', in: 'India', uk: 'United Kingdom', ca: 'Canada', au: 'Australia' };
+const REGIONS = { us: 'United States', in: 'India', uk: 'United Kingdom', ca: 'Canada', au: 'Australia' };
 
-export function detectRegion() {
+function detectRegion() {
   const cc = (navigator.language || '').toLowerCase().split('-')[1];
   return cc === 'gb' ? 'uk' : (REGIONS[cc] ? cc : 'us');
 }

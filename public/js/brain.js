@@ -237,6 +237,13 @@ export class Brain {
 
   handleExpense(t) {
     const cur = currencySymbol();
+    if (/^undo(?: that| the last)?(?: expense)?$/i.test(t)) {
+      const all = personal.listExpenses();
+      const last = all[all.length - 1];
+      if (!last) return { text: 'No expenses logged yet.', chips: MAIN_CHIPS };
+      personal.removeExpense(last.id);
+      return { text: `Removed 💸 **${cur}${last.amt.toLocaleString()}** on ${last.note}.`, chips: ['My spending', 'Help'] };
+    }
     const e = personal.parseExpense(t);
     if (e) {
       personal.addExpense(e);
@@ -245,7 +252,7 @@ export class Brain {
       const vs = budget ? ` of your ${cur}${(+budget).toLocaleString()} budget${total > budget ? ' — **over budget!**' : ''}` : '';
       return {
         text: `Logged 💸 **${cur}${e.amt.toLocaleString()}** on **${e.note}** (${e.cat}).\nThis month: **${cur}${total.toLocaleString()}**${vs}.`,
-        chips: ['My spending', 'Set a spending budget', 'Help'],
+        chips: ['Undo that expense', 'My spending', 'Set a spending budget'],
       };
     }
     const bud = t.match(/(?:spending budget|budget)\s*(?:is|of|to)?\s*\$?([\d][\d,.]*k?)/i);

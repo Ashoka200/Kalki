@@ -17,7 +17,7 @@ const CATEGORIES = {
   shopping: /clothes|shoes|amazon|flipkart|mall|gadget|electronics/,
 };
 
-export function categorize(note) {
+function categorize(note) {
   const t = (note || '').toLowerCase();
   for (const [cat, re] of Object.entries(CATEGORIES)) if (re.test(t)) return cat;
   return 'other';

@@ -4,7 +4,7 @@ import { store, fmtBytes, exportData, importData } from './store.js';
 import * as theme from './theme.js';
 import * as ui from './ui.js';
 import { Brain } from './brain.js';
-import { REGIONS, getRegion } from './regions.js';
+import { getRegion } from './regions.js';
 import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged, STATUS_LABEL, addBooking } from './skills.js';
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';

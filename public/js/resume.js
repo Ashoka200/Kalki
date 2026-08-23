@@ -45,7 +45,7 @@ const LEXICON = [
 const STOP = new Set(['the', 'and', 'for', 'with', 'you', 'our', 'are', 'will', 'this', 'that', 'have', 'from', 'your', 'their', 'about', 'into', 'must', 'work', 'team', 'role', 'able', 'they', 'them', 'more', 'other', 'within', 'across', 'including', 'strong', 'ability', 'years', 'experience', 'skills', 'requirements', 'responsibilities', 'preferred', 'plus', 'etc']);
 
 /** Keywords an ATS would likely weight, most important first. */
-export function jobKeywords(jd) {
+function jobKeywords(jd) {
   const text = String(jd || '').toLowerCase();
   const found = new Map();
 

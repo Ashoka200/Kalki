@@ -4,7 +4,7 @@
 const INTENTS = [
   ['timer',       /\b(timers?|countdown)\b/g],
   ['reminder',    /\b(remind(er)?s?)\b/g],
-  ['expense',     /\b(spent|expenses?|spending|paid\b|budget left|where.{0,10}money)\b/g],
+  ['expense',     /\b(spent|expenses?|spending|paid\b|budget left|where.{0,10}money|undo that expense)\b/g],
   ['list',        /\b(lists?)\b/g],
   ['brief',       /\b(good morning|morning brief|brief me|my day|today'?s plan|what'?s (on )?today)\b/g],
   ['bills',       /\b(bills?|subscriptions?|renewals?|due date|utilit(y|ies))\b/g],

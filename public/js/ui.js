@@ -127,7 +127,7 @@ export function addUser(text) {
 }
 
 /** Speak a bot reply aloud (opt-in via Settings). Markdown/emoji stripped. */
-export function speak(text) {
+function speak(text) {
   if (!('speechSynthesis' in window)) return;
   const plain = text.replace(/\*\*/g, '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').split('\n')[0];
   speechSynthesis.cancel();

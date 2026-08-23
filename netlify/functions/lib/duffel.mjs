@@ -5,7 +5,7 @@ const API = 'https://api.duffel.com';
 
 export const clip = (s, n) => String(s ?? '').slice(0, n);
 export const token = () => process.env.DUFFEL_TOKEN;
-export const isTest = (t = token()) => /^duffel_test_/.test(t || '');
+const isTest = (t = token()) => /^duffel_test_/.test(t || '');
 export const mode = () => (isTest() ? 'test' : 'live');
 
 /** True when a real-money booking is allowed. Live tokens need an explicit
