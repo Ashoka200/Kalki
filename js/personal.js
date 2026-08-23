@@ -271,10 +271,54 @@ export function searchChat(query) {
   return `Found ${hits.length} match${hits.length > 1 ? 'es' : ''} for “${query}”:\n\n${lines.join('\n')}`;
 }
 
+
+/* ---------- unit conversion (offline) ---------- */
+
+const ALIAS = { kilometers: 'km', kilometer: 'km', kms: 'km', km: 'km', miles: 'mi', mile: 'mi', mi: 'mi',
+  meters: 'm', meter: 'm', m: 'm', feet: 'ft', foot: 'ft', ft: 'ft', inches: 'in', inch: 'in', in: 'in',
+  centimeters: 'cm', centimeter: 'cm', cm: 'cm', kilograms: 'kg', kilogram: 'kg', kilos: 'kg', kilo: 'kg', kg: 'kg',
+  pounds: 'lb', pound: 'lb', lbs: 'lb', lb: 'lb', ounces: 'oz', ounce: 'oz', oz: 'oz', grams: 'g', gram: 'g', g: 'g',
+  liters: 'l', liter: 'l', litres: 'l', litre: 'l', l: 'l', gallons: 'gal', gallon: 'gal', gal: 'gal',
+  celsius: 'c', c: 'c', fahrenheit: 'f', f: 'f' };
+const CONVERT = {
+  'km>mi': (v) => v * 0.621371, 'mi>km': (v) => v * 1.60934,
+  'm>ft': (v) => v * 3.28084, 'ft>m': (v) => v / 3.28084,
+  'cm>in': (v) => v / 2.54, 'in>cm': (v) => v * 2.54,
+  'kg>lb': (v) => v * 2.20462, 'lb>kg': (v) => v / 2.20462,
+  'g>oz': (v) => v / 28.3495, 'oz>g': (v) => v * 28.3495,
+  'l>gal': (v) => v * 0.264172, 'gal>l': (v) => v / 0.264172,
+  'c>f': (v) => v * 9 / 5 + 32, 'f>c': (v) => (v - 32) * 5 / 9,
+};
+
+/** "5 km to miles", "70 kg in lbs", "100 f to c" → answer string or null. */
+export function convertUnits(text) {
+  const m = text.trim().match(/^(?:convert\s+)?(-?[\d,]+(?:\.\d+)?)\s*\u00b0?\s*([a-z]+)\s+(?:to|in|into)\s+\u00b0?\s*([a-z]+)\s*\??$/i);
+  if (!m) return null;
+  const [from, to] = [ALIAS[m[2].toLowerCase()], ALIAS[m[3].toLowerCase()]];
+  const fn = from && to && CONVERT[`${from}>${to}`];
+  if (!fn) return null;
+  const v = parseFloat(m[1].replace(/,/g, ''));
+  const out = fn(v);
+  return `**${v.toLocaleString()} ${from} = ${(Math.round(out * 100) / 100).toLocaleString()} ${to}**`;
+}
+
+/* ---------- compound commands ---------- */
+
+/** "remind me X and add Y to list; set a timer for Z" → parts.
+    Splits on ';', 'and then', 'also', or ' and ' before an action verb —
+    never inside item lists like "milk and eggs". */
+export function splitCompound(text) {
+  const parts = text.split(/\s*;\s*|,?\s+and then\s+|,?\s+(?:and\s+)?also\s+|\s+and\s+(?=(?:remind|add|set|track|log|start|show|spent|paid|convert|define|check|book|find|plan)\b)/i)
+    .map((s) => s.trim()).filter(Boolean);
+  return parts.length > 1 && parts.every((p) => p.split(/\s+/).length >= 2) ? parts.slice(0, 3) : [text];
+}
+
 /* ---------- quick math ---------- */
 
 /** Tip/split/percent/arithmetic → answer string, or null. */
 export function quickMath(text) {
+  const units = convertUnits(text);
+  if (units) return units;
   const t = text.toLowerCase().replace(/[,₹£$]/g, '');
   let m = t.match(/(\d+(?:\.\d+)?)\s*%\s*(?:tip\s*)?(?:on|of)\s*(\d+(?:\.\d+)?)/);
   if (m) {

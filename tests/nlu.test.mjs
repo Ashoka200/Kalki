@@ -375,3 +375,49 @@ test('short slot answers with incidental keywords do NOT switch flows', () => {
   assert.ok(r.text.includes('What time?'), r.text);
   localStorage._m.clear();
 });
+
+/* ---------- v9: Claude-independent intelligence ---------- */
+
+test('unit conversion (offline)', () => {
+  assert.ok(personal.convertUnits('5 km to miles').includes('3.11'));
+  assert.ok(personal.convertUnits('70 kg in lbs').includes('154.32'));
+  assert.ok(personal.convertUnits('100 f to c').includes('37.78'));
+  assert.ok(personal.quickMath('5 km to miles').includes('3.11')); // routed via quickMath
+  assert.equal(personal.convertUnits('100 usd to inr'), null); // currency stays with web
+});
+
+test('compound command splitting', () => {
+  assert.deepEqual(
+    personal.splitCompound('remind me to call mom at 5pm and add milk to shopping list'),
+    ['remind me to call mom at 5pm', 'add milk to shopping list']);
+  assert.deepEqual(
+    personal.splitCompound('set a timer for 10 minutes; spent $20 on lunch'),
+    ['set a timer for 10 minutes', 'spent $20 on lunch']);
+  // item lists never split
+  assert.deepEqual(personal.splitCompound('add milk and eggs to shopping list'),
+    ['add milk and eggs to shopping list']);
+});
+
+test('translation + broadened wiki parsing', () => {
+  assert.deepEqual(web.parseWebQuery('translate good morning to spanish'),
+    { kind: 'translate', text: 'good morning', to: 'es', lang: 'spanish' });
+  assert.equal(web.parseWebQuery('translate hello to klingon'), null); // unknown language
+  const q = web.parseWebQuery('why is the sky blue?');
+  assert.equal(q.kind, 'wiki'); assert.equal(q.search, true);
+  assert.equal(web.parseWebQuery('tell me about the Taj Mahal').kind, 'wiki');
+});
+
+test('small talk + pronoun memory', () => {
+  localStorage._m.clear();
+  const b = new Brain();
+  assert.ok(b.handle('tell me a joke').text.length > 10);
+  assert.ok(b.handle('who made you').text.includes('Kalki'));
+  // establish place context via a rent search, then use "there"
+  b.handle('find me a rental in Austin');
+  b.handle('skip');
+  b.handle('skip'); // rent flow completes → context.place = Austin
+  assert.equal(b.context.place, 'Austin');
+  const r = b.handle('book a hotel there');
+  assert.ok(r.text.includes('Check-in'), r.text); // city resolved, asks next slot
+  localStorage._m.clear();
+});

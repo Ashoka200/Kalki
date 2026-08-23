@@ -9,6 +9,7 @@ import { listBookings, listReminders, removeBooking, removeReminder, restoreBook
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';
 import * as web from './web.js';
+import { splitCompound } from './personal.js';
 
 const brain = new Brain();
 theme.apply();
@@ -67,6 +68,13 @@ async function send(text) {
   const t = text.trim();
   if (!t) return;
   ui.addUser(t);
+  // Compound commands: "remind me to call mom at 5 and add milk to
+  // shopping list" run as separate actions, in order.
+  const parts = brain.flow ? [t] : splitCompound(t);
+  for (const part of parts) await handleOne(part);
+}
+
+async function handleOne(t) {
   const resp = brain.handle(t);
   // Free internet answers (weather, currency, crypto, define, what-is) —
   // keyless public services, fetched right here in the browser.
@@ -96,6 +104,19 @@ async function send(text) {
       }
     }
     return;
+  }
+  // Unmatched question-like message → try Wikipedia search first (free,
+  // keyless) before any AI.
+  if (resp?.llmQuery && /\?\s*$|^(what|who|where|when|why|how|which|tell me)\b/i.test(resp.llmQuery)) {
+    ui.typing(true);
+    try {
+      const a = await web.answer({ kind: 'wiki', topic: resp.llmQuery.replace(/\?+\s*$/, ''), search: true });
+      ui.typing(false);
+      ui.addBot(a);
+      return;
+    } catch {
+      ui.typing(false); // fall through to Claude / built-in fallback
+    }
   }
   // Unmatched message → ask Claude (hosted backend by default, personal
   // key if the user set one). Falls back to the built-in reply when no

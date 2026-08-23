@@ -31,11 +31,19 @@ export function parseWebQuery(text) {
   m = t.match(/^(?:define|definition of|meaning of|what does)\s+([a-z' -]{2,30}?)(?:\s+mean)?\s*\??$/i);
   if (m) return { kind: 'define', word: m[1].trim() };
 
+  m = t.match(/^translate\s+(.+?)\s+(?:to|into|in)\s+([a-z]+)\s*\??$/i);
+  if (m && LANGS[m[2].toLowerCase()]) return { kind: 'translate', text: m[1].trim(), to: LANGS[m[2].toLowerCase()], lang: m[2] };
+
   m = t.match(/^(?:what|who)\s+(?:is|are|was|were)\s+(?:a\s+|an\s+|the\s+)?(.{2,60}?)\s*\??$/i);
   if (m) return { kind: 'wiki', topic: m[1].trim() };
 
+  m = t.match(/^(?:tell me about|where is|where are|when was|when did|when is|why is|why are|why do|why does|how do|how does|how did)\s+(.{2,70}?)\s*\??$/i);
+  if (m) return { kind: 'wiki', topic: t.replace(/\?+$/, ''), search: true };
+
   return null;
 }
+
+const LANGS = { spanish: 'es', french: 'fr', german: 'de', hindi: 'hi', telugu: 'te', tamil: 'ta', kannada: 'kn', malayalam: 'ml', bengali: 'bn', marathi: 'mr', gujarati: 'gu', punjabi: 'pa', urdu: 'ur', japanese: 'ja', chinese: 'zh', korean: 'ko', italian: 'it', portuguese: 'pt', arabic: 'ar', russian: 'ru', dutch: 'nl', greek: 'el', turkish: 'tr', vietnamese: 'vi', thai: 'th', english: 'en' };
 
 /* ---------- answering ---------- */
 
@@ -139,6 +147,12 @@ export async function answer(q) {
     case 'currency': return { text: await currency(q) };
     case 'crypto':   return { text: await crypto(q.coin) };
     case 'define':   return { text: await define(q.word) };
-    case 'wiki':     return await wiki(q.topic);
+    case 'translate': {
+      const data = await getJSON(`https://api.mymemory.translated.net/get?q=${enc(q.text)}&langpair=en|${q.to}`);
+      const out = data.responseData?.translatedText;
+      if (!out) throw new Error('Translation failed.');
+      return { text: `**${out}**\n(\u201c${q.text}\u201d in ${q.lang})` };
+    }
+    case 'wiki':     return await wiki(q.topic, !!q.search);
   }
 }

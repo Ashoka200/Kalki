@@ -32,11 +32,15 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🌅 **Morning brief** | "Good morning" → today's bookings & reminders, month spending vs budget, open lists |
 | 💪 **Habits** | "Track habit workout", then "did workout" daily — 🔥 streaks and totals |
 | 🔎 **Chat search** | "Search chat for rent" finds past conversations |
+| 🗣️ **Compound commands** | "Remind me to call mom at 5 and add milk to shopping list" runs both, in order |
+| 🌍 **Translation (free, no key)** | "Translate good morning to spanish" — 25 languages via MyMemory |
+| 📏 **Unit conversion (offline)** | "5 km to miles", "70 kg in lbs", "100 F to C" |
+| ❓ **Open questions (free, no key)** | Any "why/how/where/when…" question is answered via Wikipedia search — "why is the sky blue?" gets a real answer, no AI required |
 | 🌐 **Live answers (free, no key)** | "Weather in Austin", "convert 100 usd to inr", "bitcoin price", "define serendipity", "who is Marie Curie" — answered live from free keyless public services (Open-Meteo, Frankfurter, CoinGecko, dictionaryapi.dev, Wikipedia), fetched straight from the browser |
 | 🧠 **AI brain (zero setup)** | On the hosted site, questions the built-in skills can't handle are answered by Claude automatically — a bundled serverless function (`netlify/functions/ask.mjs`) holds the site's API key, so **users never configure anything**. A personal key in Settings is an optional override for the single-file/offline build |
 | 🔒 **PIN lock** | Optional 4–8 digit PIN asked on launch (privacy gate, not encryption) |
 
-**Conversational memory:** after any deal search, tweak one thing —
+**Conversational memory:** Kalki remembers the last place you talked about — "book a hotel **there**", "weather **there**" just work. Mid-flow, it reads your whole reply (date, time, and details in one sentence), switches flows when you change your mind, and after any deal search, tweak one thing —
 *"what about denver?"*, *"try a studio"*, *"now friday"* — and Kalki re-runs
 the search with just that slot changed. Typos are tolerated too
 (*"remnid me…"*, *"fligth"*) via an on-device fuzzy matcher.

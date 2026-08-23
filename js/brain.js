@@ -22,6 +22,7 @@ export class Brain {
     this.flow = null; // { id, values: {name: value} }
     this.lastBooking = null; // most recent booking made this session
     this.lastDeal = null; // { id, values } of the last completed deal search
+    this.context = {}; // cross-turn memory (e.g. last mentioned place)
   }
 
   get profile() { return store.get('profile', {}); }
@@ -44,8 +45,15 @@ export class Brain {
   }
 
   handle(text) {
-    const t = text.trim();
+    let t = text.trim();
     if (!t) return null;
+
+    // Pronoun memory: "book a hotel there" / "weather there" resolve to the
+    // last place this conversation mentioned.
+    if (this.context.place && /\b(there|that city|same place|the same city)\b/i.test(t) && !this.flow) {
+      t = t.replace(/\b(in|at|near|to|around|for)\s+(?:there|that city|same place|the same city)\b/gi, `$1 ${this.context.place}`)
+           .replace(/\b(?:there|that city|same place|the same city)\b/gi, `in ${this.context.place}`);
+    }
 
     if (this.flow) {
       if (nlu.wantsCancel(t)) {
@@ -55,7 +63,10 @@ export class Brain {
       return this.fillSlot(t);
     }
 
-    // Quick math — tip, split, percent, arithmetic. No flow, instant.
+    const chat = this.smallTalk(t);
+    if (chat) return chat;
+
+    // Quick math — tip, split, percent, arithmetic, unit conversion.
     const math = personal.quickMath(t);
     if (math) return { text: math };
 
@@ -347,8 +358,38 @@ export class Brain {
     const values = this.flow.values;
     const id = this.flow.id;
     this.flow = null;
-    if (DEAL_SKILLS.has(id)) this.lastDeal = { id, values };
+    if (DEAL_SKILLS.has(id)) {
+      this.lastDeal = { id, values };
+      const place = values.city || values.area || values.dest || values.to;
+      if (typeof place === 'string' && place.trim()) this.context.place = place.split(/\s+or\s+/i)[0].trim();
+    }
     return skill.finish(values, this);
+  }
+
+  smallTalk(t) {
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    if (/^how are you\b|^how's it going\b|^how do you do\b/i.test(t)) {
+      return { text: pick(['Running light and fast — all 128 KB of me. \ud83d\ude04 What can I do for you?', 'Fully charged (I barely use any battery). What do you need?']) };
+    }
+    if (/\bwho (are you|made you|created you|built you)\b/i.test(t)) {
+      return { text: 'I\u2019m **Kalki** \u2014 a personal assistant that lives entirely on your device. No accounts, no tracking; your data never leaves this phone. Say **help** to see everything I can do.' };
+    }
+    if (/\b(good ?night|going to (bed|sleep))\b/i.test(t)) {
+      return { text: 'Good night! \ud83c\udf19 I\u2019ll keep your reminders warm.' };
+    }
+    if (/\b(i )?(love|like) (you|this app)\b|\byou('re| are) (awesome|great|amazing|the best)\b/i.test(t)) {
+      return { text: pick(['\u2764\ufe0f Right back at you. Now let\u2019s save you some money.', 'Aww. \ud83e\udd70 Tell a friend \u2014 I fit in a text message.']) };
+    }
+    if (/\b(tell me a joke|another joke|joke|make me laugh|something funny)\b/i.test(t)) {
+      return { text: pick([
+        'Why don\u2019t scientists trust atoms? Because they make up everything. \ud83e\uddea',
+        'I told my suitcase there\u2019s no vacation this year. Now I\u2019m dealing with emotional baggage. \ud83e\uddf3',
+        'Why did the scarecrow win an award? He was outstanding in his field. \ud83c\udf3e',
+        'Parallel lines have so much in common. Shame they\u2019ll never meet.',
+        'I\u2019m reading a book about anti-gravity \u2014 impossible to put down. \ud83d\udcda',
+      ]), chips: ['Another joke', 'Help'] };
+    }
+    return null;
   }
 
   showBookings() {
