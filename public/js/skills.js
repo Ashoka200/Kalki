@@ -19,7 +19,7 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
    into a private window. */
 const PRIVACY_TIP = '\n\n🕵️ **Open links in a private/incognito window** — these sites track repeat searches and quietly raise prices. Tap ⧉ to copy a link, then paste it in incognito.';
 
-export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳', flight: '✈️' }[kind] || '📌');
+export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳', flight: '✈️', hotel: '🏨' }[kind] || '📌');
 
 /* ---------- saved bookings & reminders ---------- */
 
@@ -204,6 +204,23 @@ export const SKILLS = {
           { t: 'Airbnb', s: 'Often cheaper for 3+ nights', url: `https://www.airbnb.com/s/${enc(s.city)}/homes?checkin=${ci}&checkout=${co}&adults=${g}` },
         ],
         chips: ['Find flights', 'Events near me', 'Remind me to book before prices rise'],
+        staySearch: { city: s.city, checkIn: ci, checkOut: co, guests: g, rooms: 1 },
+      };
+    },
+  },
+
+  staybook: {
+    intro: 'Let’s reserve it. 🏨',
+    slots: [
+      { ...textSlot('given_name', 'Guest’s first name?'), profileKey: 'firstName' },
+      { ...textSlot('family_name', 'Last name?'), profileKey: 'lastName' },
+      { ...textSlot('email', 'Email for the confirmation?'), profileKey: 'email' },
+      { ...textSlot('phone_number', 'Phone number?'), profileKey: 'phone' },
+    ],
+    finish(s, ctx) {
+      return {
+        text: `Reserving **${ctx.pendingRate?.room}** at ${ctx.pendingHotel || 'the hotel'} for ${s.given_name} ${s.family_name}…`,
+        bookStay: { guest: { given_name: s.given_name, family_name: s.family_name, email: s.email, phone_number: s.phone_number } },
       };
     },
   },

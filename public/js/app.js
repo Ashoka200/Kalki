@@ -13,6 +13,7 @@ import { splitCompound } from './personal.js';
 import * as push from './push.js';
 import { lookupVenue, requestMessage, contactCards } from './venues.js';
 import * as flights from './flights.js';
+import * as hotels from './hotels.js';
 
 const brain = new Brain();
 theme.apply();
@@ -141,6 +142,64 @@ async function handleOne(t) {
   if (resp?.venueLookup) enrichWithVenue(resp.venueLookup);
   if (resp?.flightSearch) liveFlightSearch(resp.flightSearch);
   if (resp?.bookFlight) completeBooking(resp.bookFlight);
+  if (resp?.staySearch) liveHotelSearch(resp.staySearch);
+  if (resp?.fetchRates) showRates(resp.fetchRates);
+  if (resp?.bookStay) completeStayBooking(resp.bookStay);
+}
+
+async function liveHotelSearch(params) {
+  const cap = await hotels.capability();
+  if (!cap.live) return;
+  ui.typing(true);
+  try {
+    const { results, mode, city } = await hotels.search(params);
+    ui.typing(false);
+    if (!results?.length) { ui.addBot({ text: 'No live hotel rates came back for those dates — the links above still work.' }); return; }
+    brain.lastHotels = results;
+    ui.addBot({
+      text: `🏨 **Live rates in ${city}**${mode === 'test' ? '\n🧪 *Test mode — real hotel data, no money and no reservation.*' : ''}\n\nTotal for your stay. Tap **Rooms** to see options:`,
+      cards: results.map(hotels.hotelCard),
+      chips: ['Rooms 1', 'Show my bookings'],
+    });
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: `Couldn’t load live hotel rates (${e.message}). The links above still work.` });
+  }
+}
+
+async function showRates(hotel) {
+  ui.typing(true);
+  try {
+    const { rates } = await hotels.rates(hotel.id);
+    ui.typing(false);
+    if (!rates?.length) { ui.addBot({ text: `No rooms available at ${hotel.name} for those dates.` }); return; }
+    brain.lastRates = rates;
+    ui.addBot({ text: `**${hotel.name}** — room options:`, cards: rates.map(hotels.rateCard), chips: ['Book room 1', 'Show my bookings'] });
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: `Couldn’t load rooms (${e.message}).` });
+  }
+}
+
+async function completeStayBooking({ guest }) {
+  const rate = brain.pendingRate;
+  if (!rate) { ui.addBot({ text: 'That rate expired — search again for fresh prices.' }); return; }
+  ui.typing(true);
+  try {
+    const r = await hotels.book({ rateId: rate.id, guest, hotel: brain.pendingHotel });
+    ui.typing(false);
+    brain.setProfile({ firstName: guest.given_name, lastName: guest.family_name, email: guest.email, phone: guest.phone_number });
+    const b = addBooking({ kind: 'hotel', title: `${r.hotel} — ${r.checkIn} → ${r.checkOut}`, when: new Date(r.checkIn + 'T15:00:00').toISOString(), place: r.hotel, status: 'confirmed' });
+    ui.addBot({
+      text: `🏨 **Reserved — reference ${r.reference}**\n${r.hotel}, ${r.checkIn} → ${r.checkOut} · ${r.currency} ${r.price}${r.mode === 'test' ? '\n\n🧪 *Test booking: sandbox order — no charge and no real reservation.*' : ''}`,
+      cards: [{ t: 'Add to calendar', s: r.checkIn, ics: b.id }],
+      chips: ['Show my bookings', 'Help'],
+    });
+    brain.pendingRate = null;
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: `Reservation failed: ${e.message}` });
+  }
 }
 
 /* Real fares from the airlines, via Kalki's own backend. */

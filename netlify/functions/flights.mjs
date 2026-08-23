@@ -8,37 +8,13 @@
 
    Without a token the endpoint reports live:false and the app falls back
    to its existing deep links. */
-
-const API = 'https://api.duffel.com';
-const clip = (s, n) => String(s ?? '').slice(0, n);
-
-const isTest = (tok) => /^duffel_test_/.test(tok || '');
-
-async function duffel(path, { token, method = 'GET', body } = {}) {
-  const res = await fetch(API + path, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Duffel-Version': 'v2',
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    // Surface Duffel's own message — it names the exact offending field.
-    const e = json?.errors?.[0];
-    throw Object.assign(new Error(e ? `${e.title}: ${e.message}` : `Duffel error ${res.status}`), { status: res.status });
-  }
-  return json;
-}
+import { duffel, clip, token, mode, bookingAllowed, fail } from './lib/duffel.mjs';
 
 /** "Las Vegas" → "LAS". Passes through anything already an IATA code. */
-async function toIata(place, token) {
+async function toIata(place) {
   const p = clip(place, 60).trim();
   if (/^[A-Za-z]{3}$/.test(p)) return p.toUpperCase();
-  const { data } = await duffel(`/places/suggestions?query=${encodeURIComponent(p)}`, { token });
+  const { data } = await duffel(`/places/suggestions?query=${encodeURIComponent(p)}`);
   const hit = (data || []).find((d) => d.iata_code);
   if (!hit) throw new Error(`I couldn’t find an airport for “${p}”.`);
   return hit.iata_code;
@@ -71,20 +47,16 @@ function simplify(offer) {
 }
 
 export default async (req) => {
-  const token = process.env.DUFFEL_TOKEN;
-  const live = !!token;
-  const mode = isTest(token) ? 'test' : 'live';
-
-  if (req.method === 'GET') return Response.json({ live, mode: live ? mode : null });
+  if (req.method === 'GET') return Response.json({ live: !!token(), mode: token() ? mode() : null });
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
-  if (!live) return Response.json({ error: 'flights_not_configured' }, { status: 503 });
+  if (!token()) return Response.json({ error: 'flights_not_configured' }, { status: 503 });
 
   let body;
   try { body = await req.json(); } catch { return Response.json({ error: 'bad_request' }, { status: 400 }); }
 
   try {
     if (body.action === 'search') {
-      const [origin, destination] = await Promise.all([toIata(body.from, token), toIata(body.to, token)]);
+      const [origin, destination] = await Promise.all([toIata(body.from), toIata(body.to)]);
       const date = clip(body.date, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return Response.json({ error: 'bad_date' }, { status: 400 });
       const count = Math.min(Math.max(parseInt(body.passengers, 10) || 1, 1), 6);
@@ -93,27 +65,25 @@ export default async (req) => {
         slices.push({ origin: destination, destination: origin, departure_date: clip(body.returnDate, 10) });
       }
       const { data } = await duffel('/air/offer_requests?return_offers=true&supplier_timeout=20000', {
-        token, method: 'POST',
+        method: 'POST',
         body: { data: { slices, passengers: Array.from({ length: count }, () => ({ type: 'adult' })), cabin_class: clip(body.cabin, 20) || 'economy' } },
       });
       const offers = (data.offers || [])
         .sort((a, b) => parseFloat(a.total_amount) - parseFloat(b.total_amount))
         .slice(0, 5)
         .map(simplify);
-      return Response.json({ mode, origin, destination, offers });
+      return Response.json({ mode: mode(), origin, destination, offers });
     }
 
     if (body.action === 'book') {
-      if (mode === 'live' && process.env.DUFFEL_ALLOW_LIVE !== 'true') {
-        return Response.json({ error: 'live_booking_disabled' }, { status: 403 });
-      }
+      if (!bookingAllowed()) return Response.json({ error: 'live_booking_disabled' }, { status: 403 });
       const p = body.passenger || {};
       const required = ['given_name', 'family_name', 'born_on', 'email', 'phone_number'];
       const missing = required.filter((k) => !p[k]);
       if (missing.length) return Response.json({ error: `missing: ${missing.join(', ')}` }, { status: 400 });
 
       const { data } = await duffel('/air/orders', {
-        token, method: 'POST',
+        method: 'POST',
         body: {
           data: {
             type: 'instant',
@@ -132,12 +102,12 @@ export default async (req) => {
           },
         },
       });
-      return Response.json({ mode, reference: data.booking_reference, orderId: data.id });
+      return Response.json({ mode: mode(), reference: data.booking_reference, orderId: data.id });
     }
 
     return Response.json({ error: 'bad_action' }, { status: 400 });
   } catch (e) {
-    return Response.json({ error: e.message || 'flight_error' }, { status: e.status === 400 ? 400 : 502 });
+    return fail(e);
   }
 };
 

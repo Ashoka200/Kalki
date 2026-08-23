@@ -25,6 +25,10 @@ export class Brain {
     this.context = {}; // cross-turn memory (e.g. last mentioned place)
     this.lastOffers = null; // live flight offers awaiting a "book flight N"
     this.pendingOffer = null; // the offer being booked
+    this.lastHotels = null; // live hotel results awaiting "rates N"
+    this.lastRates = null; // room rates awaiting "book room N"
+    this.pendingRate = null; // the rate being booked
+    this.pendingHotel = null;
   }
 
   get profile() { return store.get('profile', {}); }
@@ -91,6 +95,22 @@ export class Brain {
       if (!offer) return { text: `I only have ${this.lastOffers.length} fares from that search — pick 1–${this.lastOffers.length}.` };
       this.pendingOffer = offer;
       return this.startFlow('flightbook', '');
+    }
+
+    // "rates 2" → room options for that hotel; "book room 1" → reserve it.
+    const rateReq = t.match(/^(?:rates|rooms)\s*#?(\d{1,2})$/i);
+    if (rateReq && this.lastHotels?.length) {
+      const hotel = this.lastHotels[+rateReq[1] - 1];
+      if (!hotel) return { text: `I only have ${this.lastHotels.length} hotels from that search.` };
+      this.pendingHotel = hotel.name;
+      return { fetchRates: hotel, text: `Checking rooms at **${hotel.name}**…` };
+    }
+    const roomReq = t.match(/^book (?:room|rate)\s*#?(\d{1,2})$/i);
+    if (roomReq && this.lastRates?.length) {
+      const rate = this.lastRates[+roomReq[1] - 1];
+      if (!rate) return { text: `I only have ${this.lastRates.length} room options.` };
+      this.pendingRate = rate;
+      return this.startFlow('staybook', '');
     }
 
     const chat = this.smallTalk(t);

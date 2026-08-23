@@ -86,19 +86,20 @@ WhatsApp-style chat, mobile-first.
   Settings shows exact bytes used, with **Clear chat** / **Erase all data**.
 - Service worker pre-caches the shell → works fully offline after first load.
 
-## Real flight booking (Duffel)
+## Real flight & hotel booking (Duffel)
 
-`netlify/functions/flights.mjs` serves `/api/flights` and talks to
-[Duffel](https://duffel.com) — genuine airline search and orders. Set
-`DUFFEL_TOKEN` on the site:
+`netlify/functions/flights.mjs` (`/api/flights`) and
+`netlify/functions/hotels.mjs` (`/api/hotels`) talk to
+[Duffel](https://duffel.com) — genuine airline and hotel search, rooms,
+and orders, sharing one token. Set `DUFFEL_TOKEN` on the site:
 
 - A **test token** (`duffel_test_…`, free self-serve signup) books against
   Duffel's sandbox: real airlines and fares, no money, no ticket.
 - A **live token** additionally requires `DUFFEL_ALLOW_LIVE=true` — without
   it, booking is refused, so a real purchase can never happen by accident.
 
-Without a token the endpoint reports `live:false` and the flight skill
-falls back to its pre-filled deep links.
+Without a token both endpoints report `live:false` and the flight and
+hotel skills fall back to their pre-filled deep links.
 
 ## Deploying the AI brain
 
