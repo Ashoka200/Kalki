@@ -299,10 +299,36 @@ export class Brain {
       return this.advance();
     }
     const v = slot.parse(t);
+
+    // Users often answer the narrow question with the whole request
+    // ("on the weekend for a blood test after 12pm"). Mine every other
+    // slot from the same message; explicit restatements override
+    // earlier values, so the newest information always wins.
+    const mined = {};
+    for (const s of skill.slots) {
+      if (s === slot || !s.extract) continue;
+      const ev = s.extract(t);
+      if (ev !== null && ev !== undefined) mined[s.name] = ev;
+    }
+
     if (v === null || v === undefined) {
+      // Not an answer to the question. A full fresh request for a
+      // different skill switches flows instead of erroring out...
+      const intent = nlu.detect(t);
+      if (intent && SKILLS[intent] && intent !== this.flow.id && t.trim().split(/\s+/).length >= 4) {
+        this.flow = null;
+        return this.startFlow(intent, t);
+      }
+      // ...and a message that carried other details merges them and
+      // moves on rather than complaining.
+      if (Object.keys(mined).length) {
+        Object.assign(this.flow.values, mined);
+        return this.advance();
+      }
       return { text: `Hmm, that didn’t parse. ${slot.q}\n(Or say **cancel**.)` };
     }
     this.flow.values[slot.name] = v;
+    Object.assign(this.flow.values, mined);
     return this.advance();
   }
 

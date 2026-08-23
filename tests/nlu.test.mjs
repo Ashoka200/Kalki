@@ -338,3 +338,40 @@ test('explicit years are honored', () => {
   assert.equal(nlu.parseDate('aug 14', base).getFullYear(), 2027); // no year + past → next occurrence
   assert.equal(nlu.parseDate('sep 2', base).getFullYear(), 2026);
 });
+
+/* ---------- v8: context understanding mid-flow ---------- */
+const { Brain } = await import('../js/brain.js');
+
+test('mid-flow answers are fully mined (the blood-test chat)', () => {
+  localStorage._m.clear();
+  const b = new Brain();
+  const r1 = b.handle('Doctor appointment');
+  assert.ok(r1.text.includes('What day?')); // specialty "doctor" already extracted
+  const r2 = b.handle('Book a doctors appointment on weekend for blood test near my location after 12pm');
+  // date (weekend→Sat), time (12pm) and refined specialty (blood test) all
+  // mined from one message — only the optional place question remains.
+  assert.ok(r2.text.includes('Which hospital or clinic?'), r2.text);
+  const r3 = b.handle('skip');
+  assert.ok(r3.text.includes('Booked ✅'), r3.text);
+  assert.ok(r3.text.includes('Blood test'), r3.text);
+  assert.ok(r3.text.includes('12:00 PM'), r3.text);
+  localStorage._m.clear();
+});
+
+test('mid-flow restatement for another skill switches flows', () => {
+  localStorage._m.clear();
+  const b = new Brain();
+  b.handle('find me a rental in austin');       // rent flow → asks budget
+  const r = b.handle('actually book a hotel in paris for 2 nights');
+  assert.ok(r.text.includes('hotel') || r.text.includes('Check-in') || r.text.includes('guests'), r.text);
+  localStorage._m.clear();
+});
+
+test('short slot answers with incidental keywords do NOT switch flows', () => {
+  localStorage._m.clear();
+  const b = new Brain();
+  b.handle('book a table at Nobu');             // reservation flow → asks day
+  const r = b.handle('reserve for friday');     // "reserve" keyword, but it's a date answer
+  assert.ok(r.text.includes('What time?'), r.text);
+  localStorage._m.clear();
+});

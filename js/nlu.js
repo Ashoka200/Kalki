@@ -291,7 +291,8 @@ export function extractRepeat(text) {
 
 const SPECIALTIES = ['dentist', 'dermatologist', 'cardiologist', 'optometrist', 'ophthalmologist',
   'gynecologist', 'pediatrician', 'orthopedist', 'physiotherapist', 'therapist', 'psychiatrist',
-  'neurologist', 'urologist', 'ent', 'general practitioner', 'gp', 'doctor'];
+  'neurologist', 'urologist', 'ent', 'blood test', 'lab test', 'x-ray', 'scan', 'vaccination',
+  'physical exam', 'check-up', 'general practitioner', 'gp', 'doctor'];
 
 export function extractSpecialty(text) {
   const t = text.toLowerCase();
