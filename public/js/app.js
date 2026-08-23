@@ -5,11 +5,12 @@ import * as theme from './theme.js';
 import * as ui from './ui.js';
 import { Brain } from './brain.js';
 import { REGIONS, getRegion } from './regions.js';
-import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor } from './skills.js';
+import { listBookings, listReminders, removeBooking, removeReminder, restoreBooking, restoreReminder, updateBooking, popDueReminders, fmtWhen, repeatLabel, iconFor, onRemindersChanged } from './skills.js';
 import { popDueTimers } from './personal.js';
 import * as llm from './llm.js';
 import * as web from './web.js';
 import { splitCompound } from './personal.js';
+import * as push from './push.js';
 
 const brain = new Brain();
 theme.apply();
@@ -328,8 +329,19 @@ document.getElementById('p-pin').onchange = async (e) => {
 
 document.getElementById('notif-btn').onclick = async () => {
   if ('Notification' in window) await Notification.requestPermission();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const live = await push.enablePush();
+    ui.snack(live
+      ? '🔔 Push is on — reminders reach this device even when Kalki is closed.'
+      : 'Notifications on. (Push needs the hosted site; in-app reminders work everywhere.)');
+  }
   renderSettings();
 };
+
+// Mirror reminders to the push service whenever they change, and
+// re-attach silently on every launch if permission was already given.
+onRemindersChanged(() => push.scheduleSync());
+if ('Notification' in window && Notification.permission === 'granted') push.enablePush();
 
 /* ---------- settings: backup ---------- */
 document.getElementById('export-btn').onclick = () => {

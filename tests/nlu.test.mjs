@@ -13,9 +13,9 @@ globalThis.localStorage = {
 };
 Object.defineProperty(globalThis, 'navigator', { value: { language: 'en-US' }, configurable: true });
 
-const nlu = await import('../js/nlu.js');
-const regions = await import('../js/regions.js');
-const { store } = await import('../js/store.js');
+const nlu = await import('../public/js/nlu.js');
+const regions = await import('../public/js/regions.js');
+const { store } = await import('../public/js/store.js');
 
 const BASE = new Date(2026, 6, 20); // Mon Jul 20 2026
 
@@ -160,7 +160,7 @@ test('postcode answers accept international formats', () => {
 });
 
 /* ---------- v4: personal skills ---------- */
-const personal = await import('../js/personal.js');
+const personal = await import('../public/js/personal.js');
 
 test('v4 intents', () => {
   assert.equal(nlu.detect('spent $40 on groceries today'), 'expense'); // beats groceries keyword tie
@@ -287,7 +287,7 @@ test('chat search parsing', () => {
 });
 
 /* ---------- v6: free internet answers ---------- */
-const web = await import('../js/web.js');
+const web = await import('../public/js/web.js');
 
 test('web query parsing', () => {
   localStorage._m.clear();
@@ -340,7 +340,7 @@ test('explicit years are honored', () => {
 });
 
 /* ---------- v8: context understanding mid-flow ---------- */
-const { Brain } = await import('../js/brain.js');
+const { Brain } = await import('../public/js/brain.js');
 
 test('mid-flow answers are fully mined (the blood-test chat)', () => {
   localStorage._m.clear();

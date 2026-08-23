@@ -1,6 +1,6 @@
 /* Offline-first service worker: pre-caches the whole app (it's tiny) and
    serves from cache, falling back to network. Bump VERSION on release. */
-const VERSION = 'kalki-v9';
+const VERSION = 'kalki-v10';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/brain.js',
   'js/skills.js', 'js/nlu.js', 'js/regions.js', 'js/personal.js', 'js/llm.js', 'js/web.js', 'js/theme.js', 'js/store.js', 'manifest.webmanifest',
   'icon.svg', 'icon-192.png', 'icon-512.png'];
@@ -20,4 +20,18 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+});
+
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(data.title || 'Kalki', {
+    body: data.body || '', icon: 'icon-192.png', badge: 'icon-192.png',
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((ws) => (ws.length ? ws[0].focus() : clients.openWindow('./'))));
 });

@@ -5,7 +5,7 @@
 # ANTHROPIC_API_KEY environment variable (Site configuration → Environment
 # variables) and every visitor gets Claude answers with zero setup.
 [build]
-  publish = "."
+  publish = "public"
 
 [functions]
   directory = "netlify/functions"

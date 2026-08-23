@@ -100,7 +100,7 @@ falls back to its built-in replies; all other features are unaffected.
 Any static file server:
 
 ```bash
-python3 -m http.server 8080     # open http://localhost:8080
+python3 -m http.server 8080 -d public   # open http://localhost:8080
 ```
 
 On a phone: serve over HTTPS (any static host — Netlify, GitHub Pages,
@@ -115,7 +115,7 @@ node --test tests/nlu.test.mjs
 
 ## Extending
 
-Add a skill in `js/skills.js` (slots + `finish()`), add its trigger regex in
+Add a skill in `public/js/skills.js` (slots + `finish()`), add its trigger regex in
 `js/nlu.js`, and optionally a per-region link pack in `js/regions.js` —
 that's it. The architecture is deliberately pluggable: a future LLM backend
 could replace `nlu.js`/`brain.js` behind the same interfaces, but nothing

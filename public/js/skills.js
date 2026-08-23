@@ -43,6 +43,9 @@ export function restoreBooking(b) {
   store.set('bookings', [...store.get('bookings', []), b]);
 }
 
+let remindersChanged = () => {};
+export function onRemindersChanged(fn) { remindersChanged = fn; }
+
 export function listReminders() {
   return store.get('reminders', []).sort((a, b) => a.when.localeCompare(b.when));
 }
@@ -52,13 +55,16 @@ export function addReminder(text, whenISO, repeat = null) {
   if (repeat) r.repeat = repeat;
   all.push(r);
   store.set('reminders', all);
+  remindersChanged();
   return r;
 }
 export function removeReminder(id) {
   store.set('reminders', store.get('reminders', []).filter((r) => r.id !== id));
+  remindersChanged();
 }
 export function restoreReminder(r) {
   store.set('reminders', [...store.get('reminders', []), r]);
+  remindersChanged();
 }
 
 function nextOccurrence(whenISO, repeat, now) {
@@ -85,7 +91,10 @@ export function popDueReminders(now = new Date()) {
       keep.push(r);
     }
   }
-  if (due.length) store.set('reminders', keep);
+  if (due.length) {
+    store.set('reminders', keep);
+    remindersChanged();
+  }
   return due;
 }
 
