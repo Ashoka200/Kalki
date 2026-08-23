@@ -8,6 +8,7 @@ const INTENTS = [
   ['list',        /\b(lists?)\b/g],
   ['brief',       /\b(good morning|morning brief|brief me|my day|today'?s plan|what'?s (on )?today)\b/g],
   ['bills',       /\b(bills?|subscriptions?|renewals?|due date|utilit(y|ies))\b/g],
+  ['trip',        /\b(trips?|vacations?|holidays?|getaway|itinerar(y|ies)|honeymoon)\b/g],
   ['rent',        /\b(rent(al)?s?|apartment|apartments|flat|studio|condo|lease|housing|house for rent)\b/g],
   ['insurance',   /\b(insurance|health plan|coverage|premium|deductible|medicaid|medicare|obamacare|aca)\b/g],
   ['meds',        /\b(medications?|medicines?|prescriptions?|pharmacy|drug prices?|tablets?|generic drug)\b/g],
@@ -218,12 +219,13 @@ export function parseDate(text, base = new Date()) {
     if (!m[3] && r < d) r.setFullYear(r.getFullYear() + 1);
     return r;
   }
-  m = t.match(new RegExp('\\b(' + MONTHS.join('|') + ')[a-z]*\\.?\\s+(\\d{1,2})\\b'))
-   || t.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(' + MONTHS.join('|') + ')[a-z]*\\b'));
+  m = t.match(new RegExp('\\b(' + MONTHS.join('|') + ')[a-z]*\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b'))
+   || t.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(' + MONTHS.join('|') + ')[a-z]*(?:,?\\s+(\\d{4}))?\\b'));
   if (m) {
     const [mon, day] = isNaN(+m[1]) ? [m[1], +m[2]] : [m[2], +m[1]];
-    const r = new Date(d.getFullYear(), MONTHS.indexOf(mon), day);
-    if (r < d) r.setFullYear(r.getFullYear() + 1);
+    const year = m[3] ? +m[3] : null; // explicit year wins, even if past
+    const r = new Date(year ?? d.getFullYear(), MONTHS.indexOf(mon), day);
+    if (!year && r < d) r.setFullYear(r.getFullYear() + 1);
     return r;
   }
   return null;
@@ -301,3 +303,23 @@ export function extractSpecialty(text) {
 
 export const wantsSkip = (text) => /^(skip|any|no|none|n\/a|whatever|doesn'?t matter|-)$/i.test(text.trim());
 export const wantsCancel = (text) => /^(cancel|stop|never ?mind|forget it|quit|abort)$/i.test(text.trim());
+
+/* ---------- trip entities ---------- */
+
+/** "trip in Zion or Seattle on ..." → "Zion or Seattle". */
+export function extractTripDest(text) {
+  const m = text.match(/\b(?:trips?|vacation|holiday|getaway|honeymoon|weekend)\s+(?:in|to|at)\s+([a-zÀ-ɏ][a-zÀ-ɏ.' ]{1,40}?(?:\s+or\s+[a-zÀ-ɏ][a-zÀ-ɏ.' ]{1,30})?)(?=\s+(?:on|from|for|starting|around|between|this|next)\b|[,.!?]|$)/i);
+  return m ? m[1].trim() : null;
+}
+
+export function extractOccasion(text) {
+  const m = text.toLowerCase().match(/\b(anniversary|honeymoon|birthday|babymoon|graduation|proposal)\b/);
+  return m ? m[1] : null;
+}
+
+/** Return date after "to/until/till/returning" — the tail must start with a
+    digit or month name so "trip to Zion" never reads as a date. */
+export function extractReturnDate(text, base = new Date()) {
+  const m = text.match(/\b(?:to|until|till|through|returning(?: on)?|back(?: on)?)\s+((?:\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[^,.!?]{0,28})/i);
+  return m ? parseDate(m[1], base) : null;
+}

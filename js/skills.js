@@ -7,6 +7,7 @@
 import { store } from './store.js';
 import * as nlu from './nlu.js';
 import { marketCards, fuelWord } from './regions.js';
+import { runListCmd } from './personal.js';
 
 const enc = encodeURIComponent;
 const slug = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
@@ -18,7 +19,7 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
    into a private window. */
 const PRIVACY_TIP = '\n\n🕵️ **Open links in a private/incognito window** — these sites track repeat searches and quietly raise prices. Tap ⧉ to copy a link, then paste it in incognito.';
 
-export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾' }[kind] || '📌');
+export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳' }[kind] || '📌');
 
 /* ---------- saved bookings & reminders ---------- */
 
@@ -429,6 +430,59 @@ export const SKILLS = {
           { t: 'Negotiation script', s: `How to lower your ${s.what} bill`, url: `https://www.google.com/search?q=${enc('how to negotiate lower ' + s.what + ' bill script')}` },
         ],
         chips: ['Track another bill', 'Show my bookings', 'Help'],
+      };
+    },
+  },
+
+  trip: {
+    intro: 'Let\u2019s plan this trip. \ud83e\uddf3',
+    slots: [
+      { name: 'dest', q: 'Where to?', extract: nlu.extractTripDest,
+        parse: (t) => (t.trim().length > 1 ? t.trim() : null) },
+      { ...dateSlot, name: 'start', q: 'When does the trip start? (e.g. Aug 14, next friday)' },
+      { name: 'end', q: 'And back on? (or "skip" for a 2-night trip)',
+        extract: nlu.extractReturnDate, parse: nlu.parseDate, optional: true },
+      { name: 'occasion', hidden: true, extract: nlu.extractOccasion },
+      { name: 'party', hidden: true, extract: (t) => (/\bcouple\b/i.test(t) ? 2 : nlu.extractPartySize(t)) },
+    ],
+    finish(s, ctx) {
+      const [main, alt] = s.dest.split(/\s+or\s+/i).map((x) => x.trim());
+      let end = s.end && s.end > s.start ? new Date(s.end) : null;
+      if (!end) { end = new Date(s.start); end.setDate(end.getDate() + 2); }
+      const nights = Math.max(1, Math.round((end - s.start) / 86400e3));
+      const g = s.party || 2;
+      const [ci, co] = [iso(s.start), iso(end)];
+      const romantic = s.occasion === 'anniversary' || s.occasion === 'honeymoon' || s.occasion === 'proposal';
+
+      // Packing list + a pack-reminder the evening before, done for you.
+      const listName = `${main.toLowerCase()} trip`;
+      const items = ['travel documents / ID', 'phone chargers', 'toiletries', 'medications', 'comfortable shoes',
+        ...(romantic ? ['anniversary gift \ud83c\udf81', 'nice dinner outfit', 'camera'] : [])];
+      for (const it of items) runListCmd({ op: 'add', item: it, list: listName });
+      const packAt = new Date(s.start);
+      packAt.setDate(packAt.getDate() - 1);
+      packAt.setHours(18, 0, 0, 0);
+      if (packAt > new Date()) addReminder(`Pack for the ${main} trip`, packAt.toISOString());
+
+      const b = addBooking({ kind: 'trip', title: `${cap(main)} trip`, when: new Date(s.start).toISOString(), place: main });
+      ctx.noteBooking(b);
+
+      const occTxt = s.occasion ? ` for your ${s.occasion} \u2728` : '';
+      const tips = romantic
+        ? '\n\n\ud83d\udc9e Anniversary playbook: mention the occasion when booking the hotel (free upgrades happen more than you\u2019d think), reserve the dinner table 2\u20133 weeks ahead and ask for a quiet corner, plan one golden-hour walk or viewpoint, and pre-book a photographer for an hour if you want real photos.'
+        : '\n\n\ud83d\udca1 Book refundable where you can \u2014 prices drop more often than they rise this close in.';
+      const altTxt = alt ? `\n(Planning **${cap(main)}** first \u2014 say \u201cwhat about ${alt}\u201d to see it instead.)` : '';
+      return {
+        text: `\ud83e\uddf3 **${cap(main)} \u2014 ${fmtWhen(new Date(s.start).toISOString()).split(',')[0]}, ${ci} \u2192 ${co}** (${nights} night${nights > 1 ? 's' : ''}, ${g} traveler${g > 1 ? 's' : ''})${occTxt}${altTxt}\n\nI\u2019ve added a **packing list** (\u201cshow my ${listName} list\u201d), set a **pack reminder** for the evening before, and saved the trip to your bookings.${tips}`,
+        cards: [
+          { t: 'Add to calendar', s: fmtWhen(b.when), ics: b.id },
+          { t: 'Hotels', s: `${cap(main)}, ${ci} \u2192 ${co}, ${g} guests`, url: `https://www.booking.com/searchresults.html?ss=${enc(main)}&checkin=${ci}&checkout=${co}&group_adults=${g}` },
+          { t: 'Google Hotels', s: 'Price graph shows cheap dates', url: `https://www.google.com/travel/hotels/${enc(main)}` },
+          { t: 'Flights', s: `To ${cap(main)} on ${ci}`, url: `https://www.google.com/travel/flights?q=${enc(`flights to ${main} on ${ci}`)}` },
+          { t: 'Things to do', s: `Top sights in ${cap(main)}`, url: `https://www.google.com/search?q=${enc(`top things to do in ${main}`)}` },
+          ...(romantic ? [{ t: 'Romantic dinner', s: 'Book the anniversary table', url: `https://www.google.com/search?q=${enc(`best romantic restaurants in ${main} reservation`)}` }] : []),
+        ],
+        chips: [...(alt ? [`What about ${alt}`] : []), `Show my ${listName} list`, 'Show my bookings'],
       };
     },
   },

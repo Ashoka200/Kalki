@@ -316,3 +316,25 @@ test('web query parsing', () => {
   assert.equal(web.parseWebQuery('spent $40 on groceries'), null);
   localStorage._m.clear();
 });
+
+/* ---------- v7: trip planner ---------- */
+
+test('trip parsing', () => {
+  assert.equal(nlu.detect('Plan a trip in Zion or Seattle on 14th Aug 2026 to 16th Aug 2026 for a couple on their wedding anniversary'), 'trip');
+  assert.equal(nlu.extractTripDest('Plan a trip in Zion or Seattle on 14th Aug 2026'), 'Zion or Seattle');
+  assert.equal(nlu.extractTripDest('vacation to Goa for new year'), 'Goa');
+  assert.equal(nlu.extractOccasion('for a couple on their wedding anniversary'), 'anniversary');
+  const start = nlu.parseDate('trip on 14th Aug 2026', BASE);
+  assert.equal(start.getMonth(), 7); assert.equal(start.getDate(), 14);
+  const ret = nlu.extractReturnDate('on 14th Aug 2026 to 16th Aug 2026 for a couple', BASE);
+  assert.equal(ret.getDate(), 16);
+  assert.equal(nlu.extractReturnDate('plan a trip to Zion on friday', BASE), null); // "to Zion" is not a date
+});
+
+test('explicit years are honored', () => {
+  const base = new Date(2026, 7, 23); // Aug 23 2026 — past Aug 14
+  assert.equal(nlu.parseDate('14th Aug 2026', base).getFullYear(), 2026); // not rolled to 2027
+  assert.equal(nlu.parseDate('Aug 14, 2027', base).getFullYear(), 2027);
+  assert.equal(nlu.parseDate('aug 14', base).getFullYear(), 2027); // no year + past → next occurrence
+  assert.equal(nlu.parseDate('sep 2', base).getFullYear(), 2026);
+});

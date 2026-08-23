@@ -10,12 +10,12 @@ import { parseWebQuery } from './web.js';
 import { currencySymbol } from './regions.js';
 import { store } from './store.js';
 
-const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 'My habits', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
+const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 'My habits', 'Plan a trip', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
 
 /* Deal searches remember their last run so "what about mumbai?" works. */
-const DEAL_SKILLS = new Set(['rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
+const DEAL_SKILLS = new Set(['trip', 'rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
 /* Which slot a bare follow-up like "what about pune" most likely replaces. */
-const PLACE_SLOTS = ['city', 'area', 'to', 'item', 'items', 'model', 'role', 'drug', 'venue'];
+const PLACE_SLOTS = ['dest', 'city', 'area', 'to', 'item', 'items', 'model', 'role', 'drug', 'venue'];
 
 export class Brain {
   constructor() {
