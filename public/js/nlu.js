@@ -20,6 +20,7 @@ const INTENTS = [
   ['groceries',   /\b(grocer(y|ies)|supermarket|vegetables|fruits|food delivery|instacart|bigbasket|blinkit)\b/g],
   ['gas',         /\b(gas station|gas price|petrol|diesel|fuel|fill (up|the tank))\b/g],
   ['usedcar',     /\b(used cars?|second ?hand cars?|buy a car|car deals?|pre-?owned)\b/g],
+  ['apply',       /\b(apply|application|cover letter|tailor (?:my )?(?:resume|cv)|resume|cv)\b/g],
   ['jobs',        /\b(jobs?|hiring|vacanc(y|ies)|internships?|career|resume|naukri)\b/g],
   ['events',      /\b(events?|festivals?|concerts?|gigs?|things to do|happening|carnival|fair|expo)\b/g],
   ['court',       /\b(courts?|turf|badminton|tennis|pickleball|basketball|futsal|squash|volleyball|cricket net|table tennis|ping pong)\b/g],

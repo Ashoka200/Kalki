@@ -8,6 +8,7 @@ import { store } from './store.js';
 import * as nlu from './nlu.js';
 import { marketCards, fuelWord, getRegion } from './regions.js';
 import { runListCmd } from './personal.js';
+import { hasResume, matchReport, jobMeta, coverLetter, addApplication } from './resume.js';
 
 const enc = encodeURIComponent;
 const slug = (s) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
@@ -428,6 +429,36 @@ export const SKILLS = {
         text: `🚐 **${s.from} → ${s.to}**${booked}${pax}\n\n💰 Transfer tips: pre-booked fixed-price transfers beat airport taxi ranks on arrival (no surge, no meter surprises); shared shuttles are cheapest solo; ride-hailing is usually cheapest for 1–3 people in-city; always check if your hotel runs a free shuttle first.`,
         cards,
         chips: ['Show my bookings', 'Book a hotel', 'Help'],
+      };
+    },
+  },
+
+  apply: {
+    intro: 'Let’s tailor this application. 📄',
+    slots: [
+      { name: 'jd', q: 'Paste the job description (or share it into Kalki from the job site).',
+        extract: (t) => (t.length > 220 ? t : null),
+        parse: (t) => (t.trim().length > 60 ? t.trim() : null) },
+    ],
+    finish(s) {
+      const meta = jobMeta(s.jd);
+      const rep = matchReport(s.jd);
+      const letter = coverLetter(s.jd);
+      const app = addApplication({ role: meta.role || 'Role', company: meta.company || 'Company', score: rep.score });
+      const verdict = rep.score >= 70 ? 'Strong match — apply today.'
+        : rep.score >= 45 ? 'Decent match — worth applying once you work in the gaps below.'
+        : 'Weaker match — only worth it if you can evidence the missing items.';
+      const gaps = rep.missing.length
+        ? `\n\n**Missing from your resume:** ${rep.missing.join(', ')}\nIf you genuinely have these, add them in the posting’s own words — that is what the ATS scans for.`
+        : '\n\nYour resume already covers every keyword I found. 🎯';
+      return {
+        text: `📄 **${meta.role || 'This role'}${meta.company ? ` · ${meta.company}` : ''}**\n\n**ATS match: ${rep.score}%** — ${verdict}\n**You already match:** ${rep.have.slice(0, 8).join(', ') || '—'}${gaps}\n\nYour cover letter is below — copy it, read it once, send it. Logged to your applications.`,
+        cards: [
+          { t: '📋 Cover letter', s: 'Tap to copy, tailored to this posting', copy: letter },
+          { t: '✉️ Email it', s: 'Opens your mail app with the letter', url: `mailto:?subject=${enc('Application: ' + (meta.role || 'role'))}&body=${enc(letter)}` },
+          { t: '🔎 Company research', s: 'Know them before the interview', url: `https://www.google.com/search?q=${enc((meta.company || '') + ' company news interview questions')}` },
+        ],
+        chips: ['My applications', `Remind me to follow up in 3 days`, 'Help'],
       };
     },
   },

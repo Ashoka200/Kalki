@@ -14,6 +14,7 @@ import * as push from './push.js';
 import { lookupVenue, requestMessage, contactCards } from './venues.js';
 import * as flights from './flights.js';
 import * as hotels from './hotels.js';
+import * as resume from './resume.js';
 
 const brain = new Brain();
 theme.apply();
@@ -312,8 +313,13 @@ if (ui.restore() === 0) botRespond(brain.welcome());
       chips: ['Remind me about this tomorrow', 'Help'],
     });
   } else {
-    // Plain shared text (an address, a note, a request) — run it normally.
-    handleOne(label);
+    // A long shared text that reads like a job posting → tailor the application.
+    const shared = text || title;
+    if (shared.length > 220 && /\b(responsibilities|requirements|qualifications|we are looking for|job description|apply)\b/i.test(shared) && resume.hasResume()) {
+      handleOne(shared);
+    } else {
+      handleOne(label);
+    }
   }
 })();
 
@@ -453,6 +459,13 @@ function renderSettings() {
   document.getElementById('p-spend').value = p.spendBudget || '';
   document.getElementById('p-region').value = getRegion();
   document.getElementById('p-tts').checked = !!p.tts;
+  document.getElementById('p-resume').value = resume.getResume();
+  document.getElementById('p-tone').value = resume.getTone();
+  document.getElementById('p-template').value = resume.getTemplate();
+  const rp = resume.profileFromResume();
+  document.getElementById('resume-state').textContent = resume.hasResume()
+    ? `Saved${rp?.title ? ` — reads as “${rp.title}”` : ''}${rp?.years ? `, ~${rp.years} years` : ''}. Used only on this device.`
+    : 'No resume saved yet. Paste it above to unlock tailored applications.';
   document.getElementById('p-apikey').value = p.apiKey || '';
   document.getElementById('pin-state').textContent = p.pinHash ? 'PIN is set. Enter a new one to change it, or clear the field and press enter to remove.' : 'No PIN set.';
   document.getElementById('storage-used').textContent = `Using ${fmtBytes(store.usage())}.`;
@@ -478,6 +491,28 @@ for (const [id, key] of [['p-name', 'name'], ['p-phone', 'phone'], ['p-city', 'c
     brain.setProfile({ [key]: v });
   };
 }
+document.getElementById('p-resume').onchange = (e) => {
+  resume.setResume(e.target.value);
+  ui.snack(resume.hasResume() ? '📄 Resume saved on this device.' : 'Resume cleared.');
+  renderSettings();
+};
+document.getElementById('p-tone').onchange = (e) => resume.setTone(e.target.value);
+document.getElementById('p-template').onchange = (e) => resume.setTemplate(e.target.value);
+document.getElementById('template-reset').onclick = () => {
+  resume.setTemplate(resume.DEFAULT_TEMPLATE);
+  renderSettings();
+  ui.snack('Template reset.');
+};
+const $resumeFile = document.getElementById('resume-file');
+document.getElementById('resume-upload').onclick = () => $resumeFile.click();
+$resumeFile.onchange = async () => {
+  const f = $resumeFile.files[0];
+  if (!f) return;
+  resume.setResume(await f.text());
+  renderSettings();
+  ui.snack('📄 Resume loaded.');
+};
+
 document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
 document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
 document.getElementById('p-apikey').onchange = (e) => {

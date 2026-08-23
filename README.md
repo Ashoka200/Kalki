@@ -16,6 +16,7 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🩺 **Health insurance** | Region-aware: marketplace + subsidies (US), Policybazaar/PM-JAY (India), NHS (UK)… |
 | 🏨 **Hotels** | Date/guest-filled comparisons + call-direct, loyalty and refundable-rebook tricks |
 | ✈️ **Flights** | Google Flights/Kayak/Skyscanner deep links + regional fare sites, alerts, ±3 day tips |
+| 📄 **Job applications** | Save your resume once (on-device), then paste or share any job ad: ATS match score, the keywords you're missing, a cover letter tailored to that posting's own language, and application tracking with status. Tone and letter template are fully customizable in Settings |
 | 💼 **Jobs** | Pre-filled searches on LinkedIn/Indeed + the board that matters locally (Naukri, Reed, SEEK…) |
 | 💊 **Medication prices** | GoodRx/CostPlus (US), 1mg/PharmEasy (India)… + generic-substitution tips |
 | ⛽ **Fuel prices** | Cheapest stations nearby, warehouse-club and cash-discount tips |

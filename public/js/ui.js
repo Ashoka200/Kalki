@@ -65,6 +65,17 @@ function renderCard(card) {
       b.onclick = () => downloadICS(booking);
       c.appendChild(b);
     }
+  } else if (card.copy) {
+    const b = el('button', 'icsbtn', 'Copy');
+    b.type = 'button';
+    b.onclick = async () => {
+      try { await navigator.clipboard.writeText(card.copy); b.textContent = '✓ Copied'; }
+      catch { b.textContent = 'Press & hold to copy'; }
+      setTimeout(() => { b.textContent = 'Copy'; }, 1800);
+    };
+    c.appendChild(b);
+    const pre = el('div', 'copytext', card.copy);
+    c.appendChild(pre);
   } else if (card.act) {
     const b = el('button', 'icsbtn', card.actLabel || 'Go');
     b.type = 'button';

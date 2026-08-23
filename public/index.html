@@ -97,6 +97,28 @@
       <p class="hint">On the hosted site this turns on push — reminders ring even when Kalki is closed. Enabling shares your reminder text &amp; times (only those) with the site's push service; disable notifications to stop.</p>
     </section>
 
+    <h2>Resume &amp; applications</h2>
+    <section class="card">
+      <label>Your resume (plain text)
+        <textarea id="p-resume" rows="6" placeholder="Paste your resume here — it never leaves this device."></textarea>
+      </label>
+      <input id="resume-file" type="file" accept=".txt,.md,text/plain" hidden>
+      <button id="resume-upload" class="btn ghost">Load from a .txt file</button>
+      <p class="hint" id="resume-state"></p>
+      <label>Cover letter tone
+        <select id="p-tone">
+          <option value="professional">Professional</option>
+          <option value="warm">Warm</option>
+          <option value="direct">Direct</option>
+        </select>
+      </label>
+      <label>Cover letter template
+        <textarea id="p-template" rows="6"></textarea>
+      </label>
+      <p class="hint">Placeholders: <code>{role}</code> <code>{at_company}</code> <code>{intro}</code> <code>{strengths}</code> <code>{closer}</code> <code>{name}</code> <code>{contact}</code></p>
+      <button id="template-reset" class="btn ghost">Reset template</button>
+    </section>
+
     <h2>AI brain</h2>
     <section class="card">
       <p class="hint">On the hosted Kalki site the AI brain works automatically over the internet — no setup. Questions the built-in skills can't handle are answered by Claude through the site's own backend.</p>

@@ -6,11 +6,12 @@
 import * as nlu from './nlu.js';
 import { SKILLS, reminderSeed, cleanSeed, listBookings, listReminders, fmtWhen, repeatLabel, addReminder, iconFor, setBookingStatus } from './skills.js';
 import * as personal from './personal.js';
+import * as resume from './resume.js';
 import { parseWebQuery } from './web.js';
 import { currencySymbol } from './regions.js';
 import { store } from './store.js';
 
-const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 'My habits', 'Plan a trip', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Airport transfer', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
+const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 'My habits', 'Plan a trip', 'Find a rental', 'Shopping deals', 'Groceries', 'Book a ride', 'Airport transfer', 'Book a hotel', 'Find flights', 'Events near me', 'Find a job', 'Apply to a job', 'Medication prices', 'Fuel prices', 'Used car deals', 'Health insurance', 'Doctor appointment', 'Reserve a table', 'Book a game court', 'Track a bill', 'Set a timer', 'Set a reminder'];
 
 /* Deal searches remember their last run so "what about mumbai?" works. */
 const DEAL_SKILLS = new Set(['trip', 'rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
@@ -113,6 +114,21 @@ export class Brain {
       return this.startFlow('staybook', '');
     }
 
+    // Application tracker: "my applications", "mark acme interview".
+    const appCmd = resume.parseApplicationCmd(t);
+    if (appCmd) {
+      if (appCmd.op === 'list') {
+        const apps = resume.listApplications();
+        if (!apps.length) return { text: 'No applications logged yet. Say “**apply**” and paste a job description — I’ll tailor it and track it.', chips: ['Apply to a job', 'Find a job'] };
+        const lines = apps.slice(0, 10).map((a) => `${resume.STATUS_ICON[a.status] || '📨'} **${a.role}**${a.company ? ` · ${a.company}` : ''} — ${a.score != null ? a.score + '% match, ' : ''}${new Date(a.ts).toLocaleDateString()}`);
+        return { text: `Your applications (${apps.length}):\n\n${lines.join('\n')}\n\nUpdate one with “mark ⟨company⟩ interview”.`, chips: ['Apply to a job', 'Help'] };
+      }
+      const hit = resume.listApplications().find((a) => `${a.company} ${a.role}`.toLowerCase().includes(appCmd.name.toLowerCase()));
+      if (!hit) return { text: `I don’t have an application matching “${appCmd.name}”.`, chips: ['My applications'] };
+      resume.setApplicationStatus(hit.id, appCmd.status);
+      return { text: `${resume.STATUS_ICON[appCmd.status]} **${hit.role}${hit.company ? ` · ${hit.company}` : ''}** → ${appCmd.status}.`, chips: ['My applications', 'Help'] };
+    }
+
     const chat = this.smallTalk(t);
     if (chat) return chat;
 
@@ -175,6 +191,13 @@ export class Brain {
     }
 
     const intent = nlu.detect(t);
+    if (intent === 'apply' && !resume.hasResume()) {
+      return {
+        text: '📄 First, save your resume — paste it into **⚙️ Settings → Resume** (it stays on this device). Then send me any job description and I’ll score the match, name the missing keywords and write a tailored cover letter.',
+        open: 'settings',
+        chips: ['Help'],
+      };
+    }
     if (intent && SKILLS[intent]) return this.startFlow(intent, t);
 
     switch (intent) {

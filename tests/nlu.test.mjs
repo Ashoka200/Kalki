@@ -451,3 +451,73 @@ test('shopping item extraction', () => {
   assert.equal(nlu.extractItem('best deal on running shoes'), 'running shoes');
   assert.equal(nlu.extractItem('shopping deals'), null); // nothing specific yet
 });
+
+/* ---------- v16: resume & applications ---------- */
+const resume = await import('../public/js/resume.js');
+
+test('resume storage + profile reading', () => {
+  localStorage._m.clear();
+  assert.equal(resume.hasResume(), false);
+  resume.setResume(`Ashok Kumar
+Senior Financial Analyst
+2016 - 2026, 9 years experience
+Skills: FP&A, forecasting, budgeting, variance analysis, Excel, SQL, Power BI, NetSuite`);
+  assert.equal(resume.hasResume(), true);
+  const p = resume.profileFromResume();
+  assert.match(p.title, /Financial Analyst/i);
+  assert.equal(p.years, 9);
+});
+
+const JD = `Job Title: FP&A Manager
+Company: Acme Corp
+Experience with forecasting, budgeting and variance analysis.
+Proficiency in Excel and SQL required. Knowledge of Anaplan and Tableau preferred.
+Strong stakeholder management. FP&A leadership. Forecasting accuracy. Budgeting cycles.`;
+
+test('job parsing, ATS scoring and gaps', () => {
+  const meta = resume.jobMeta(JD);
+  assert.equal(meta.role, 'FP&A Manager');
+  assert.equal(meta.company, 'Acme Corp');
+  const rep = resume.matchReport(JD);
+  assert.ok(rep.score > 30 && rep.score <= 100, `score ${rep.score}`);
+  assert.ok(rep.have.includes('forecasting') && rep.have.includes('excel'));
+  assert.ok(rep.missing.includes('anaplan')); // genuinely absent from the resume
+  assert.ok(!rep.missing.includes('forecasting'));
+});
+
+test('cover letter is tailored and customizable', () => {
+  const letter = resume.coverLetter(JD);
+  assert.ok(letter.includes('FP&A Manager'), letter);
+  assert.ok(letter.includes('Acme Corp'));
+  assert.ok(/forecasting|budgeting|fp&a/i.test(letter)); // mirrors the posting
+  resume.setTone('direct');
+  assert.notEqual(resume.coverLetter(JD), letter); // tone changes the text
+  resume.setTemplate('Hi — {role}. {strengths} — {name}');
+  assert.ok(resume.coverLetter(JD).startsWith('Hi — FP&A Manager.'));
+  resume.setTemplate(resume.DEFAULT_TEMPLATE);
+  resume.setTone('professional');
+});
+
+test('application tracking', () => {
+  const a = resume.addApplication({ role: 'FP&A Manager', company: 'Acme Corp', score: 62 });
+  assert.equal(resume.listApplications()[0].status, 'applied');
+  assert.deepEqual(resume.parseApplicationCmd('my applications'), { op: 'list' });
+  const cmd = resume.parseApplicationCmd('mark Acme interview');
+  assert.equal(cmd.status, 'interview');
+  resume.setApplicationStatus(a.id, 'interview');
+  assert.equal(resume.listApplications()[0].status, 'interview');
+  assert.equal(resume.parseApplicationCmd('find me a job'), null);
+  localStorage._m.clear();
+});
+
+test('job fields survive a single-line paste', () => {
+  // Pasting into the chat box collapses newlines — fields must still be clean.
+  const flat = 'Job Title: FP&A Manager Company: Acme Corp Responsibilities: own forecasting and budgeting Requirements: Excel, SQL';
+  const meta = resume.jobMeta(flat);
+  assert.equal(meta.role, 'FP&A Manager');
+  assert.equal(meta.company, 'Acme Corp');
+  // and with newlines intact
+  const multi = 'Job Title: FP&A Manager\nCompany: Acme Corp\nResponsibilities: forecasting';
+  assert.equal(resume.jobMeta(multi).role, 'FP&A Manager');
+  assert.equal(resume.jobMeta(multi).company, 'Acme Corp');
+});
