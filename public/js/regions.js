@@ -240,6 +240,35 @@ const M = {
     ],
   },
 
+  transfer: {
+    us: (s) => [
+      { t: 'Lyft', s: 'Compare against Uber', url: `https://lyft.com/ride?id=lyft&pickup%5Baddress%5D=${enc(s.from)}&destination%5Baddress%5D=${enc(s.to)}` },
+      { t: 'Blacklane', s: 'Pre-booked private chauffeur', url: 'https://www.blacklane.com/en/booking/' },
+      { t: 'SuperShuttle / shared vans', s: 'Cheapest door-to-door', url: `https://www.google.com/search?q=${enc('airport shuttle ' + s.from + ' to ' + s.to)}` },
+    ],
+    in: (s) => [
+      { t: 'Ola', s: 'Often cheaper than Uber locally', url: 'https://book.olacabs.com/' },
+      { t: 'Rapido', s: 'Bike & auto — cheapest short hops', url: 'https://rapido.bike/' },
+      { t: 'Savaari', s: 'Fixed-price outstation & airport cabs', url: `https://www.savaari.com/airport-taxi` },
+      { t: 'Meru', s: 'Pre-book airport pickup', url: 'https://www.meru.in/' },
+    ],
+    uk: (s) => [
+      { t: 'Bolt', s: 'Usually undercuts Uber', url: 'https://bolt.eu/en/cities/' },
+      { t: 'FREENOW', s: 'Licensed black cabs', url: 'https://www.free-now.com/uk/' },
+      { t: 'Addison Lee', s: 'Pre-booked cars, fixed fares', url: 'https://www.addisonlee.com/' },
+      { t: 'National Express', s: 'Airport coaches — cheapest', url: `https://www.nationalexpress.com/en` },
+    ],
+    ca: (s) => [
+      { t: 'Lyft', s: 'Compare against Uber', url: `https://lyft.com/ride?id=lyft&pickup%5Baddress%5D=${enc(s.from)}&destination%5Baddress%5D=${enc(s.to)}` },
+      { t: 'Blacklane', s: 'Pre-booked private chauffeur', url: 'https://www.blacklane.com/en/booking/' },
+    ],
+    au: (s) => [
+      { t: 'DiDi', s: 'Usually cheapest in AU cities', url: 'https://web.didiglobal.com/au/' },
+      { t: '13cabs', s: 'Licensed taxis, pre-book', url: 'https://www.13cabs.com.au/' },
+      { t: 'Ola', s: 'Compare fares', url: 'https://ola.com.au/' },
+    ],
+  },
+
   gas: {
     us: (s) => [
       { t: 'GasBuddy', s: 'Cheapest stations, updated live', url: `https://www.gasbuddy.com/home?search=${enc(s.area)}` },

@@ -11,6 +11,7 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 🏠 **Rent deals** | Asks city / budget / bedrooms (or extracts them from one sentence), then opens pre-filtered searches on the rental sites for *your region* + negotiation tips |
 | 🛍️ **Shopping deals** | Price comparison + price-history + coupon links for any item |
 | 🛒 **Groceries** | Compare delivery apps & store prices for an item or a whole list |
+| 🚐 **Airport transfers** | Pick-up/drop-off, date & time → every major transfer app and site for your region (Uber, Lyft, Ola, Rapido, Bolt, FREENOW, DiDi, 13cabs, Blacklane, Addison Lee…) plus worldwide fixed-price services (GetTransfer, Kiwitaxi, Welcome Pickups), transit comparison and local operators — saved to bookings with a reminder |
 | 🚗 **Rides** | Uber opens with your destination pre-set; regional apps (Ola, Lyft, Rapido) + fare tricks |
 | 🩺 **Health insurance** | Region-aware: marketplace + subsidies (US), Policybazaar/PM-JAY (India), NHS (UK)… |
 | 🏨 **Hotels** | Date/guest-filled comparisons + call-direct, loyalty and refundable-rebook tricks |
@@ -75,6 +76,9 @@ WhatsApp-style chat, mobile-first.
 - **Bookings tab**: reschedule inline (✏️), delete with **Undo**, calendar
   export — the `.ics` carries a VALARM so the alarm fires from your calendar
   app even when Kalki is closed.
+- **Share from any app**: Kalki registers as a share target, so a product
+  page, address or note shared from any app or website lands in the chat
+  with actions (compare the price, add to a list, remind me about it).
 - **Backup**: export all data to a JSON file, import it on a new phone.
 - Quick-reply chips survive restarts; an install button appears when the
   browser allows one-tap install.

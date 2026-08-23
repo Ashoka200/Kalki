@@ -36,7 +36,7 @@ test('intent detection', () => {
 
 test('new skill intents', () => {
   assert.equal(nlu.detect('order groceries for the week'), 'groceries');
-  assert.equal(nlu.detect('book an uber to the airport'), 'rides');
+  assert.equal(nlu.detect('book an uber to the airport'), 'transfer'); // airport-bound rides get the transfer skill
   assert.equal(nlu.detect('get me a cab'), 'rides');
   assert.equal(nlu.detect('find software engineer jobs'), 'jobs');
   assert.equal(nlu.detect('cheapest petrol near me'), 'gas');
@@ -420,4 +420,34 @@ test('small talk + pronoun memory', () => {
   const r = b.handle('book a hotel there');
   assert.ok(r.text.includes('Check-in'), r.text); // city resolved, asks next slot
   localStorage._m.clear();
+});
+
+/* ---------- v15: transfers ---------- */
+
+test('transfer intent + leg extraction', () => {
+  assert.equal(nlu.detect('airport transfer from LAS to the Bellagio'), 'transfer');
+  assert.equal(nlu.detect('I need an airport pickup on friday'), 'transfer');
+  assert.equal(nlu.detect('book an uber to the airport'), 'transfer'); // airport wins over generic ride
+  assert.equal(nlu.detect('get me a cab'), 'rides'); // plain ride still routes to rides
+  const leg = nlu.extractLeg('airport transfer from LAS airport to the Bellagio on friday');
+  assert.equal(leg.from, 'LAS airport');
+  assert.equal(leg.to, 'the Bellagio');
+});
+
+test('transfer providers follow the region', () => {
+  store.set('profile', { region: 'in' });
+  const cards = regions.marketCards('transfer', { from: 'BLR', to: 'Whitefield' });
+  assert.ok(cards.some((c) => c.t === 'Ola'));
+  assert.ok(cards.some((c) => c.t === 'Rapido'));
+  store.set('profile', { region: 'uk' });
+  assert.ok(regions.marketCards('transfer', { from: 'LHR', to: 'Soho' }).some((c) => c.t === 'FREENOW'));
+  store.set('profile', {});
+});
+
+test('shopping item extraction', () => {
+  assert.equal(nlu.extractItem('shopping deals for Sony WH-1000XM5 headphones'), 'Sony WH-1000XM5 headphones');
+  assert.equal(nlu.extractItem('deals on running shoes'), 'running shoes');
+  assert.equal(nlu.extractItem('buy a kettle under $50'), 'kettle');
+  assert.equal(nlu.extractItem('best deal on running shoes'), 'running shoes');
+  assert.equal(nlu.extractItem('shopping deals'), null); // nothing specific yet
 });

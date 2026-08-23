@@ -240,7 +240,7 @@ async function completeBooking({ passenger }) {
     ui.addBot({
       text: `🎟️ **Booked — reference ${r.reference}**\n${offer.airline}, ${offer.from} → ${offer.to}, ${new Date(offer.departs).toLocaleString()}\n${r.mode === 'test' ? '\n🧪 *Test booking: this is a sandbox order — no charge, and it is not a real ticket.*' : ''}`,
       cards: [{ t: 'Add to calendar', s: new Date(offer.departs).toLocaleString(), ics: b.id }],
-      chips: ['Show my bookings', 'Help'],
+      chips: [`Airport transfer from ${offer.to} airport`, 'Show my bookings', 'Help'],
     });
     brain.pendingOffer = null;
   } catch (e) {
@@ -284,6 +284,38 @@ document.getElementById('composer').onsubmit = (e) => {
 ui.showChips.onPick = send;
 
 if (ui.restore() === 0) botRespond(brain.welcome());
+
+/* Share target: anything shared from another app or website lands here
+   (registered in the manifest). A link gets link actions; plain text is
+   treated as a normal request. */
+(function handleShare() {
+  const q = new URLSearchParams(location.search);
+  const url = (q.get('url') || '').trim();
+  const text = (q.get('text') || '').trim();
+  const title = (q.get('title') || '').trim();
+  if (!url && !text && !title) return;
+  history.replaceState(null, '', location.pathname); // don't re-fire on refresh
+
+  const link = url || (text.match(/https?:\/\/\S+/) || [])[0] || '';
+  const label = title || text.replace(link, '').trim() || link;
+  ui.addUser(`Shared: ${label || link}`.slice(0, 200));
+
+  if (link) {
+    const item = (label || '').replace(/https?:\/\/\S+/, '').trim().slice(0, 60);
+    ui.addBot({
+      text: `📥 Got it${item ? ` — **${item}**` : ''}. What should I do with it?`,
+      cards: [
+        { t: '🔎 Compare this price', s: 'Check other stores & price history', act: item ? `shopping deals for ${item}` : 'shopping deals', actLabel: 'Compare' },
+        { t: '📝 Add to a list', s: 'Saves it to your shopping list', act: `add ${item || link} to shopping list`, actLabel: 'Add' },
+        { t: '🔗 Open the link', s: link.replace(/^https?:\/\//, '').slice(0, 44), url: link },
+      ],
+      chips: ['Remind me about this tomorrow', 'Help'],
+    });
+  } else {
+    // Plain shared text (an address, a note, a request) — run it normally.
+    handleOne(label);
+  }
+})();
 
 /* ---------- voice input ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;

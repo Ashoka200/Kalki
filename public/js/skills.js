@@ -6,7 +6,7 @@
    regions.js; Google-based links here work everywhere. */
 import { store } from './store.js';
 import * as nlu from './nlu.js';
-import { marketCards, fuelWord } from './regions.js';
+import { marketCards, fuelWord, getRegion } from './regions.js';
 import { runListCmd } from './personal.js';
 
 const enc = encodeURIComponent;
@@ -19,7 +19,7 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
    into a private window. */
 const PRIVACY_TIP = '\n\n🕵️ **Open links in a private/incognito window** — these sites track repeat searches and quietly raise prices. Tap ⧉ to copy a link, then paste it in incognito.';
 
-export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳', flight: '✈️', hotel: '🏨' }[kind] || '📌');
+export const iconFor = (kind) => ({ appointment: '🏥', reservation: '🍽️', court: '🎾', trip: '🧳', flight: '✈️', hotel: '🏨', transfer: '🚐' }[kind] || '📌');
 
 /* ---------- saved bookings & reminders ---------- */
 
@@ -334,7 +334,7 @@ export const SKILLS = {
   shopping: {
     intro: 'Bargain hunt time. 🛍️',
     slots: [
-      textSlot('item', 'What are you looking to buy?'),
+      { ...textSlot('item', 'What are you looking to buy?'), extract: nlu.extractItem },
       { name: 'budget', q: 'Max price? (or "skip")', extract: nlu.extractMoney, parse: nlu.parseMoney, optional: true },
     ],
     finish(s) {
@@ -388,6 +388,46 @@ export const SKILLS = {
           { t: 'Google Maps', s: 'Compare with transit & walking', url: dir },
         ],
         chips: ['Book a hotel', 'Events near me', 'Help'],
+      };
+    },
+  },
+
+  transfer: {
+    intro: 'Airport transfer. 🚐',
+    slots: [
+      { name: 'from', q: 'Pick-up — which airport or address?',
+        extract: (t) => nlu.extractLeg(t).from, parse: (t) => (t.trim().length > 1 ? t.trim() : null) },
+      { name: 'to', q: 'Drop-off — where are you heading?',
+        extract: (t) => nlu.extractLeg(t).to, parse: (t) => (t.trim().length > 1 ? t.trim() : null) },
+      { ...dateSlot, q: 'Which day? (or "skip" for now)', optional: true },
+      { ...timeSlot, q: 'What time? (or "skip")', optional: true, dependsOn: 'date' },
+      { name: 'pax', q: 'How many passengers? (or "skip")', extract: nlu.extractPartySize,
+        parse: (t) => (/^\d{1,2}$/.test(t.trim()) ? +t.trim() : nlu.extractPartySize(t)), optional: true },
+    ],
+    finish(s, ctx) {
+      let booked = '';
+      const cards = [
+        { t: 'Uber', s: 'Opens with your route set', url: `https://m.uber.com/ul/?action=setPickup&pickup=${enc(JSON.stringify({ addressLine1: s.from }))}&dropoff=${enc(JSON.stringify({ addressLine1: s.to }))}` },
+        ...marketCards('transfer', s),
+        { t: 'GetTransfer', s: 'Fixed-price private transfers worldwide', url: `https://gettransfer.com/en/order?from=${enc(s.from)}&to=${enc(s.to)}` },
+        { t: 'Kiwitaxi', s: 'Pre-booked airport taxis, 100+ countries', url: `https://kiwitaxi.com/search?from=${enc(s.from)}&to=${enc(s.to)}` },
+        { t: 'Welcome Pickups', s: 'Meet-and-greet drivers', url: 'https://www.welcomepickups.com/' },
+        { t: 'Route & transit options', s: 'Compare with train / bus', url: `https://www.google.com/maps/dir/?api=1&origin=${enc(s.from)}&destination=${enc(s.to)}` },
+        { t: 'Local transfer companies', s: 'Independent operators, often cheapest', url: `https://www.google.com/search?q=${enc('airport transfer ' + s.from + ' to ' + s.to + ' book')}` },
+      ];
+      if (s.date && s.time) {
+        const when = combine(s.date, s.time);
+        const b = addBooking({ kind: 'transfer', title: `Transfer ${s.from} → ${s.to}`, when, place: s.from });
+        ctx.remindBefore(b);
+        ctx.noteBooking(b);
+        booked = `\nSaved for **${fmtWhen(when)}** with a reminder the day before.`;
+        cards.unshift({ t: 'Add to calendar', s: fmtWhen(when), ics: b.id });
+      }
+      const pax = s.pax && s.pax > 4 ? '\n\n👥 For ' + s.pax + ' people ask for a van/MPV — per-person it usually beats two cars.' : '';
+      return {
+        text: `🚐 **${s.from} → ${s.to}**${booked}${pax}\n\n💰 Transfer tips: pre-booked fixed-price transfers beat airport taxi ranks on arrival (no surge, no meter surprises); shared shuttles are cheapest solo; ride-hailing is usually cheapest for 1–3 people in-city; always check if your hotel runs a free shuttle first.`,
+        cards,
+        chips: ['Show my bookings', 'Book a hotel', 'Help'],
       };
     },
   },

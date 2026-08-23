@@ -15,6 +15,7 @@ const INTENTS = [
   ['appointment', /\b(appointment|doctor|dentist|hospital|clinic|check-?up|physician|specialist|dermatologist|cardiologist)\b/g],
   ['hotel',       /\b(hotels?|motel|hostel|resort|airbnb|lodging|accommodation|place to stay)\b/g],
   ['flight',      /\b(flights?|fly|flying|airfare|air ticket|plane ticket)\b/g],
+  ['transfer',    /\b(airport (?:transfer|pickup|drop|taxi|cab|shuttle)|(?:to|from) (?:the )?airport|pick me up|shuttle)\b/g],
   ['rides',       /\b(rides?|uber|lyft|ola|rapido|taxi|cab|rideshare)\b/g],
   ['groceries',   /\b(grocer(y|ies)|supermarket|vegetables|fruits|food delivery|instacart|bigbasket|blinkit)\b/g],
   ['gas',         /\b(gas station|gas price|petrol|diesel|fuel|fill (up|the tank))\b/g],
@@ -323,4 +324,21 @@ export function extractOccasion(text) {
 export function extractReturnDate(text, base = new Date()) {
   const m = text.match(/\b(?:to|until|till|through|returning(?: on)?|back(?: on)?)\s+((?:\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[^,.!?]{0,28})/i);
   return m ? parseDate(m[1], base) : null;
+}
+
+/** "transfer from LAS airport to Bellagio" → { from, to } (either may be null). */
+export function extractLeg(text) {
+  const from = text.match(/\bfrom\s+([a-zÀ-ɏ0-9][a-zÀ-ɏ0-9.,' -]{2,60}?)(?=\s+(?:to|at|on|for|arriving|departing)\b|[.!?]|$)/i);
+  const to = text.match(/\bto\s+([a-zÀ-ɏ0-9][a-zÀ-ɏ0-9.,' -]{2,60}?)(?=\s+(?:from|at|on|for|arriving|departing)\b|[.!?]|$)/i);
+  return { from: from ? from[1].trim() : null, to: to ? to[1].trim() : null };
+}
+
+/** "deals for running shoes", "buy a kettle", "price of an iphone" → item. */
+export function extractItem(text) {
+  const m = text.match(/\b(?:deals?|bargains?|discounts?|offers?)\s+(?:for|on)\s+(.{2,60})$/i)
+        || text.match(/\b(?:buy|purchase|shop(?:ping)? for|looking for|find me)\s+(?:a|an|the|some)?\s*(.{2,60})$/i)
+        || text.match(/\b(?:price|cost)\s+(?:of|for)\s+(?:a|an|the)?\s*(.{2,60})$/i);
+  if (!m) return null;
+  const item = m[1].replace(/[?.!]+$/, '').replace(/\s+(?:under|below|for)\s+\$?[\d,.]+k?$/i, '').trim();
+  return item.length > 1 && !/^(deals?|stuff|things|something)$/i.test(item) ? item : null;
 }
