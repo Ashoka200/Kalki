@@ -88,9 +88,19 @@
         </select>
       </label>
       <label class="check"><input id="p-tts" type="checkbox"> Speak replies aloud</label>
-      <label class="check"><input id="p-semantic" type="checkbox"> Smarter understanding on-device (≈23 MB once, private)</label>
-      <p class="hint" id="semantic-state"></p>
       <p class="hint">Kalki uses this to pre-fill searches and pick the marketplaces that matter where you live.</p>
+    </section>
+
+    <h2>Brain — no API key, nothing leaves your phone</h2>
+    <section class="card">
+      <label class="check"><input id="p-semantic" type="checkbox"> Smarter understanding on-device (≈34 MB once, private)</label>
+      <p class="hint" id="semantic-state"></p>
+      <p class="hint" id="llm-state"></p>
+      <button id="llm-btn" type="button" class="btn ghost">⬇️ Download Kalki Brain (on-device AI)</button>
+      <div class="progress" id="llm-progress" hidden><div id="llm-bar"></div></div>
+      <label class="check"><input id="p-llm" type="checkbox"> Use the on-device brain when available</label>
+      <label class="check"><input id="p-free" type="checkbox"> Free web answers for questions (no key; rate-limited, unverified)</label>
+      <p class="hint">Order of answering: built-in rules → on-device understanding → on-device brain → free web answers → the hosted brain (only if this site has a key).</p>
     </section>
 
     <h2>Notifications</h2>

@@ -234,3 +234,6 @@ h2 { font-size: .85em; color: var(--dim); text-transform: uppercase; letter-spac
   border: 1px solid rgba(134,150,160,.2); border-radius: 8px; resize: vertical;
 }
 .card code { background: rgba(134,150,160,.18); padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+.progress { height: 6px; margin-top: 10px; border-radius: 3px; overflow: hidden; background: rgba(134,150,160,.25); }
+.progress div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.btn:disabled { opacity: .6; cursor: default; }
