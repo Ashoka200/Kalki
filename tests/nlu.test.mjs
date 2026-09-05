@@ -669,3 +669,43 @@ test('freellm: off by default', () => {
   store.remove('profile');
   assert.equal(freellm.enabled(), false);
 });
+
+// ---- "my current location" means: ask the device, then continue ----
+test('here: the place extractor never treats "my current location" as a city', () => {
+  assert.equal(nlu.extractCity('cheapest gas near my current location'), null);
+  assert.equal(nlu.extractCity('events around here'), null);
+  assert.equal(nlu.extractCity('rentals in Austin'), 'Austin');
+});
+
+test('here: asking for your location is recognised in natural phrasings', () => {
+  const b = new Brain();
+  for (const q of ['What is my current location?', 'where am i right now', 'show my location', 'my location']) {
+    assert.equal(b.handle(q)?.locate, true, q);
+  }
+});
+
+test('here: a request "near me" parks the flow, locates, then continues with the real city', () => {
+  store.set('profile', { city: 'Austin' }); // home city must NOT be used for "current location"
+  const b = new Brain();
+  const r = b.startFlow('gas', 'cheapest gas near my current location');
+  assert.equal(r.locate, true);
+  assert.equal(b.flow?.pendingLocate, 'area');
+  const done = b.resumeWithPlace('Las Vegas');
+  assert.equal(b.flow, null, 'flow completes once the place is known');
+  assert.match(done.text, /Las Vegas/);
+  assert.ok(!/Austin/.test(done.text));
+  store.remove('profile');
+});
+
+test('here: answering a place question with "here" also locates; failure falls back to asking', () => {
+  store.remove('profile');
+  const b = new Brain();
+  b.startFlow('events', 'any festivals');
+  assert.equal(b.flow?.id, 'events');
+  const r = b.handle('here');
+  assert.equal(r.locate, true);
+  assert.equal(b.flow.pendingLocate, 'city');
+  const q = b.locateFailed();
+  assert.match(q, /city or area/i);
+  assert.equal(b.flow.pendingLocate, undefined);
+});
