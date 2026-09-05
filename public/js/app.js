@@ -15,6 +15,7 @@ import { lookupVenue, requestMessage, contactCards } from './venues.js';
 import * as flights from './flights.js';
 import * as hotels from './hotels.js';
 import * as resume from './resume.js';
+import * as geo from './geo.js';
 
 const brain = new Brain();
 theme.apply();
@@ -79,8 +80,46 @@ async function send(text) {
   for (const part of parts) await handleOne(part);
 }
 
+/* Render a brain response and fire any async side-effects it asks for
+   (live searches, booking completions, venue lookups). Used both for
+   rule-matched responses and for skills the LLM brain starts. */
+function dispatchResp(resp) {
+  botRespond(resp);
+  if (resp?.venueLookup) enrichWithVenue(resp.venueLookup);
+  if (resp?.flightSearch) liveFlightSearch(resp.flightSearch);
+  if (resp?.bookFlight) completeBooking(resp.bookFlight);
+  if (resp?.staySearch) liveHotelSearch(resp.staySearch);
+  if (resp?.fetchRates) showRates(resp.fetchRates);
+  if (resp?.bookStay) completeStayBooking(resp.bookStay);
+}
+
+/* Detect the device location, save it to the profile, and report back in
+   chat. Shared by the "where am I" command and the Settings button. */
+async function runLocate() {
+  ui.typing(true);
+  try {
+    const place = await geo.locate();
+    ui.typing(false);
+    const patch = { city: place.city };
+    if (place.region) patch.region = place.region;
+    brain.setProfile(patch);
+    if (document.getElementById('view-settings').classList.contains('active')) renderSettings();
+    ui.addBot({
+      text: `📍 Got it — you’re in **${place.city}**${place.countryName ? `, ${place.countryName}` : ''}.` +
+        `${place.approx ? ' *(approximate, from your network — set your exact city in ⚙️ Settings if it’s off)*' : ''}` +
+        ` I’ll use this for deals, weather and bookings.`,
+      chips: ['Weather', 'Find a rental', 'Events near me', 'Fuel prices'],
+    });
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: geo.explain(e.reason) });
+  }
+}
+
 async function handleOne(t) {
   const resp = brain.handle(t);
+  // Device location: "where am I", "use my location", "update my location".
+  if (resp?.locate) { await runLocate(); return; }
   // Free internet answers (weather, currency, crypto, define, what-is) —
   // keyless public services, fetched right here in the browser.
   if (resp?.web) {
@@ -123,29 +162,27 @@ async function handleOne(t) {
       ui.typing(false); // fall through to Claude / built-in fallback
     }
   }
-  // Unmatched message → ask Claude (hosted backend by default, personal
-  // key if the user set one). Falls back to the built-in reply when no
-  // AI is reachable.
+  // Unmatched message → the LLM brain. It either starts one of Kalki's
+  // skills (understanding paraphrase the rules missed) or answers directly.
+  // Falls back to the built-in reply when no AI is reachable.
   if (resp?.llmQuery && llm.enabled()) {
     ui.typing(true);
     try {
-      const reply = await llm.ask(resp.llmQuery);
+      const out = await llm.route(resp.llmQuery);
       ui.typing(false);
-      ui.addBot({ text: reply });
+      if (out.intent && brain.canStart(out.intent)) {
+        dispatchResp(brain.startFlowFromModel(out.intent, out.details, resp.llmQuery));
+      } else {
+        ui.addBot({ text: out.reply || resp.text, chips: out.reply ? undefined : resp.chips });
+      }
     } catch (e) {
       ui.typing(false);
       if (e.unavailable) botRespond(resp); // no backend on this build — plain fallback
-      else ui.addBot({ text: `${resp.text}\n\n(🧠 Claude couldn’t help: ${e.message})`, chips: resp.chips });
+      else ui.addBot({ text: `${resp.text}\n\n(🧠 Kalki’s brain couldn’t help: ${e.message})`, chips: resp.chips });
     }
     return;
   }
-  botRespond(resp);
-  if (resp?.venueLookup) enrichWithVenue(resp.venueLookup);
-  if (resp?.flightSearch) liveFlightSearch(resp.flightSearch);
-  if (resp?.bookFlight) completeBooking(resp.bookFlight);
-  if (resp?.staySearch) liveHotelSearch(resp.staySearch);
-  if (resp?.fetchRates) showRates(resp.fetchRates);
-  if (resp?.bookStay) completeStayBooking(resp.bookStay);
+  dispatchResp(resp);
 }
 
 async function liveHotelSearch(params) {
@@ -513,6 +550,7 @@ $resumeFile.onchange = async () => {
   ui.snack('📄 Resume loaded.');
 };
 
+document.getElementById('p-locate').onclick = () => { show('chat'); runLocate(); };
 document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
 document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
 document.getElementById('p-apikey').onchange = (e) => {
