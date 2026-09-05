@@ -93,7 +93,7 @@ export function detectProfileFact(text) {
   let m = t.match(/\bmy name('?s| is)\s+([a-z][a-z .'-]{0,30})/i) || t.match(/\bi'?m called\s+([a-z][a-z .'-]{0,30})/i);
   if (m) return { key: 'name', value: title(m[m.length - 1]) };
   m = t.match(/\bi (live|stay) in\s+([a-z][a-z .'-]{0,40})/i);
-  if (m) return { key: 'city', value: title(m[2]) };
+  if (m) return { key: 'city', value: normCity(m[2]) };
   m = t.match(/\bmy (rent )?budget is\s+\$?([\d,.]+)\s*k?/i);
   if (m) return { key: 'budget', value: parseMoney(m[2] + (t.match(/[\d,.]+\s*k\b/i) ? 'k' : '')) };
   return null;
@@ -123,20 +123,35 @@ export function extractMoney(text) {
 }
 
 /** "in Austin, under $2k" → "Austin". */
+/* Nicknames and old names people actually type → the name marketplaces
+   expect. Applied to every extracted place so "in vegas" searches Las Vegas. */
+const CITY_ALIAS = {
+  vegas: 'Las Vegas', nyc: 'New York', 'new york city': 'New York', sf: 'San Francisco',
+  philly: 'Philadelphia', 'dc': 'Washington DC', 'washington dc': 'Washington DC', atl: 'Atlanta',
+  bangalore: 'Bengaluru', blr: 'Bengaluru', bombay: 'Mumbai', calcutta: 'Kolkata', madras: 'Chennai',
+  hyd: 'Hyderabad', vizag: 'Visakhapatnam', gurgaon: 'Gurugram', delhi: 'New Delhi', 'new delhi': 'New Delhi',
+  'blore': 'Bengaluru', pune: 'Pune', noida: 'Noida', melb: 'Melbourne', brissy: 'Brisbane', brum: 'Birmingham',
+};
+/** Canonical, title-cased place name (alias-aware). */
+export function normCity(raw) {
+  const key = raw.trim().replace(/[.!?]+$/, '').toLowerCase().replace(/\s+/g, ' ');
+  return CITY_ALIAS[key] || title(raw);
+}
+
 export function extractCity(text) {
   const m = text.match(/\b(?:in|near|around)\s+([a-zÀ-ɏ][a-zÀ-ɏ' ]{1,30}?)(?=\s+(?:under|below|around|for|with|at|by|next|this|on)\b|[,.!?]|$)/i);
   if (!m || /^(me|here|us|my|town|the)$/i.test(m[1].trim())) return null;
-  return title(m[1]);
+  return normCity(m[1]);
 }
 
 /** "flight from austin to new york" → "Austin" / "New York". */
 export function extractOrigin(text) {
   const m = text.match(/\bfrom\s+([a-zÀ-ɏ'. ]{2,30}?)(?=\s+(?:to|on|next|this)\b|[,.!?]|$)/i);
-  return m ? title(m[1]) : null;
+  return m ? normCity(m[1]) : null;
 }
 export function extractDest(text) {
   const m = text.match(/\bto\s+([a-zÀ-ɏ'. ]{2,30}?)(?=\s+(?:on|from|next|this|tomorrow|today)\b|[,.!?]|$)/i);
-  return m ? title(m[1]) : null;
+  return m ? normCity(m[1]) : null;
 }
 
 /** "3 nights" → 3. */

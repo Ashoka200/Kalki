@@ -612,3 +612,21 @@ test('semantic: switched off in Settings → never routes', async () => {
   assert.equal(await semantic.route(semantic.EXAMPLES.rent[0]), null);
   store.remove('profile');
 });
+
+// ---- City nicknames → canonical names ----
+test('city aliases: nicknames and old names resolve everywhere places are extracted', () => {
+  assert.equal(nlu.extractCity('somewhere cheap to crash in vegas'), 'Las Vegas');
+  assert.equal(nlu.extractCity('apartments in bangalore under 30k'), 'Bengaluru');
+  assert.equal(nlu.extractCity('hotels in nyc for the weekend'), 'New York');
+  assert.equal(nlu.extractOrigin('flight from bombay to sf'), 'Mumbai');
+  assert.equal(nlu.extractDest('flight from bombay to sf'), 'San Francisco');
+  // ordinary names are untouched (just title-cased)
+  assert.equal(nlu.extractCity('rentals in san marcos'), 'San Marcos');
+  assert.equal(nlu.normCity('  austin '), 'Austin');
+});
+
+test('city aliases: "I live in …" learns the canonical name', () => {
+  assert.deepEqual(nlu.detectProfileFact('i live in bangalore'), { key: 'city', value: 'Bengaluru' });
+  assert.deepEqual(nlu.detectProfileFact('I live in Austin.'), { key: 'city', value: 'Austin' });
+  assert.equal(nlu.normCity('vegas?'), 'Las Vegas');
+});
