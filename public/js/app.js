@@ -123,13 +123,71 @@ async function runLocate() {
   }
 }
 
+/* The answer chain for anything that isn't a skill: the on-device brain
+   (waiting for it if it's still loading), then free web answers if enabled,
+   then the hosted brain if this site has a key. Returns true when something
+   answered. Every tier is optional; the caller decides what to do when all
+   are off. */
+async function answerWithBrains(q, resp) {
+  // Tier 1 — on-device model. If it's enabled but still loading from cache,
+  // wait for it rather than silently skipping to a worse answer.
+  if (local.enabled()) {
+    const st = local.status().state;
+    if (!local.ready() && (st === 'idle' || st === 'loading' || st === 'checking')) {
+      ui.typing(true);
+      await local.load().catch(() => {});
+    }
+    if (local.ready()) {
+      ui.typing(true);
+      try {
+        const a = await local.answer(q);
+        ui.typing(false);
+        ui.addBot({ text: `${a}\n\n📱 *Answered on this phone — may be wrong on facts.*`, chips: resp?.chips });
+        return true;
+      } catch { ui.typing(false); }
+    }
+    ui.typing(false);
+  }
+  // Tier 2 — free keyless web answers (opt-in, rate-limited, labelled).
+  if (freellm.enabled() && navigator.onLine) {
+    ui.typing(true);
+    try {
+      const r = await freellm.answer(q);
+      ui.typing(false);
+      ui.addBot({ text: `${r.text}\n\n🌐 *Free web answer via ${r.provider} — unverified.*`, chips: resp?.chips });
+      return true;
+    } catch { ui.typing(false); }
+  }
+  // Tier 3 — the hosted brain, only if the site is configured with a key.
+  if (llm.enabled()) {
+    ui.typing(true);
+    try {
+      const out = await llm.route(q);
+      ui.typing(false);
+      if (out.intent && brain.canStart(out.intent)) dispatchResp(brain.startFlowFromModel(out.intent, out.details, q));
+      else if (out.reply) ui.addBot({ text: out.reply });
+      else return false;
+      return true;
+    } catch (e) {
+      ui.typing(false);
+      if (!e.unavailable) { ui.addBot({ text: `🧠 Couldn’t get an answer: ${e.message}` }); return true; }
+    }
+  }
+  return false;
+}
+
 async function handleOne(t) {
   const resp = brain.handle(t);
   // Device location: "where am I", "use my location", "update my location".
   if (resp?.locate) { await runLocate(); return; }
-  // Free internet answers (weather, currency, crypto, define, what-is) —
-  // keyless public services, fetched right here in the browser.
+  // Free internet answers (weather, currency, crypto, define, who/what-is) —
+  // keyless public services, fetched right here in the browser. Open
+  // questions ("why…", "how do I…") are better answered by a brain than by
+  // a Wikipedia search, so those try the brains first; exact lookups
+  // ("who is Marie Curie") still go straight to Wikipedia.
   if (resp?.web) {
+    const openQuestion = resp.web.kind === 'wiki' && resp.web.search;
+    if (openQuestion && await answerWithBrains(t, resp)) return;
     ui.typing(true);
     try {
       const a = await web.answer(resp.web);
@@ -139,42 +197,21 @@ async function handleOne(t) {
       ui.typing(false);
       if (e.offline) {
         ui.addBot({ text: '🌐 I need internet for that one and you seem to be offline. Everything else still works!' });
-      } else if (e.notFound && llm.enabled()) {
-        // Wikipedia came up empty — let Claude take a shot if available.
-        try {
-          ui.typing(true);
-          const reply = await llm.ask(t);
-          ui.typing(false);
-          ui.addBot({ text: reply });
-        } catch {
-          ui.typing(false);
-          ui.addBot({ text: e.message });
-        }
+      } else if (e.notFound) {
+        // Wikipedia came up empty — let a brain take a shot before giving up.
+        if (!(await answerWithBrains(t, resp))) ui.addBot({ text: e.message });
       } else {
         ui.addBot({ text: e.message });
       }
     }
     return;
   }
-  // Unmatched question-like message → try Wikipedia search first (free,
-  // keyless) before any AI.
-  if (resp?.llmQuery && /\?\s*$|^(what|who|where|when|why|how|which|tell me)\b/i.test(resp.llmQuery)) {
-    ui.typing(true);
-    try {
-      const a = await web.answer({ kind: 'wiki', topic: resp.llmQuery.replace(/\?+\s*$/, ''), search: true });
-      ui.typing(false);
-      ui.addBot(a);
-      return;
-    } catch {
-      ui.typing(false); // fall through to Claude / built-in fallback
-    }
-  }
   if (resp?.llmQuery) {
     const q = resp.llmQuery;
     // Tier 0 — on-device semantic understanding (no key, nothing leaves the
-    // phone). If it recognises a skill, Tier 1 (the optional on-device LLM)
-    // pulls the details out of messy phrasing; otherwise the regex extractors
-    // and slot-filling do the rest.
+    // phone). If it recognises a skill, the on-device brain (when ready)
+    // pulls the details out of messy phrasing; otherwise the regex
+    // extractors and slot-filling do the rest.
     if (semantic.enabled()) {
       ui.typing(true);
       try {
@@ -189,53 +226,23 @@ async function handleOne(t) {
       } catch { /* fall through */ }
       ui.typing(false);
     }
-    // Tier 1 — a short answer from the on-device model, labelled as such.
-    if (local.ready()) {
+    // Not a skill → a brain answers (on-device → free → hosted).
+    if (await answerWithBrains(q, resp)) return;
+    // No brain available: a question can still try a Wikipedia search.
+    if (/\?\s*$|^(what|who|where|when|why|how|which|tell me)\b/i.test(q)) {
       ui.typing(true);
       try {
-        const a = await local.answer(q);
+        const a = await web.answer({ kind: 'wiki', topic: q.replace(/\?+\s*$/, ''), search: true });
         ui.typing(false);
-        ui.addBot({ text: `${a}\n\n📱 *On-device answer — no internet used; may be wrong on facts.*`, chips: resp.chips });
+        ui.addBot(a);
         return;
       } catch { ui.typing(false); }
     }
-    // Tier 2 — free keyless web answers (opt-in, rate-limited, labelled).
-    if (freellm.enabled() && navigator.onLine) {
-      ui.typing(true);
-      try {
-        const r = await freellm.answer(q);
-        ui.typing(false);
-        ui.addBot({ text: `${r.text}\n\n🌐 *Free web answer via ${r.provider} — unverified.*`, chips: resp.chips });
-        return;
-      } catch {
-        ui.typing(false);
-        if (!llm.enabled()) {
-          ui.addBot({ text: 'The free answer services are busy right now. Here’s a web search instead:',
-            cards: [{ t: '🔎 Search the web', s: q.slice(0, 60), url: `https://www.google.com/search?q=${encodeURIComponent(q)}` }], chips: resp.chips });
-          return;
-        }
-      }
+    if (freellm.enabled() === false && !local.enabled() && !llm.enabled()) {
+      // Nothing smart is switched on — say so once, helpfully.
+      ui.addBot({ text: `${resp.text}\n\n💡 For open questions, turn on **Kalki Brain** or **Free web answers** in ⚙️ Settings → Brain.`, chips: resp.chips });
+      return;
     }
-  }
-  // Tier 3 — the hosted Claude brain, only if the site is configured with a
-  // key. It either starts a skill or answers directly; falls back to the
-  // built-in reply when no AI is reachable.
-  if (resp?.llmQuery && llm.enabled()) {
-    ui.typing(true);
-    try {
-      const out = await llm.route(resp.llmQuery);
-      ui.typing(false);
-      if (out.intent && brain.canStart(out.intent)) {
-        dispatchResp(brain.startFlowFromModel(out.intent, out.details, resp.llmQuery));
-      } else {
-        ui.addBot({ text: out.reply || resp.text, chips: out.reply ? undefined : resp.chips });
-      }
-    } catch (e) {
-      ui.typing(false);
-      if (e.unavailable) botRespond(resp); // no backend on this build — plain fallback
-      else ui.addBot({ text: `${resp.text}\n\n(🧠 Kalki’s brain couldn’t help: ${e.message})`, chips: resp.chips });
-    }
-    return;
   }
   dispatchResp(resp);
 }

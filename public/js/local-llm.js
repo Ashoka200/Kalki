@@ -171,6 +171,14 @@ export async function answer(text) {
   return out;
 }
 
+/* Free memory only after the app has been in the background a while —
+   reloading from cache takes ~10–20 s, so a quick app switch shouldn't
+   cost the user that wait on their next question. */
+const UNLOAD_AFTER_MS = 120000;
+let unloadTimer = null;
 if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => { if (document.hidden) unload(); });
+  document.addEventListener('visibilitychange', () => {
+    clearTimeout(unloadTimer);
+    if (document.hidden) unloadTimer = setTimeout(unload, UNLOAD_AFTER_MS);
+  });
 }
