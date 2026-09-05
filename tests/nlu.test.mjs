@@ -709,3 +709,18 @@ test('here: answering a place question with "here" also locates; failure falls b
   assert.match(q, /city or area/i);
   assert.equal(b.flow.pendingLocate, undefined);
 });
+
+// ---- Versioning + diagnostics ----
+test('app version stamp matches the service worker cache version', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../public/js/app.js', import.meta.url), 'utf8');
+  const sw = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
+  const a = app.match(/APP_VERSION = '(v\d+)'/)[1];
+  const w = sw.match(/VERSION = 'kalki-(v\d+)'/)[1];
+  assert.equal(a, w);
+});
+
+test('"brain status" is recognised as the diagnostics command', () => {
+  const b = new Brain();
+  for (const q of ['brain status', 'status', 'version', 'debug']) assert.equal(b.handle(q)?.diag, true, q);
+});

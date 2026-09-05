@@ -20,6 +20,9 @@ import * as semantic from './semantic.js';
 import * as local from './local-llm.js';
 import * as freellm from './freellm.js';
 
+/* Keep in step with VERSION in sw.js (a test enforces it). */
+export const APP_VERSION = 'v23';
+
 const brain = new Brain();
 theme.apply();
 
@@ -123,6 +126,22 @@ async function runLocate() {
   }
 }
 
+/* One screenshot's worth of truth about what is running. */
+function diagnostics() {
+  const st = local.status();
+  const cal = semantic.calibration();
+  const p = brain.profile;
+  return [
+    `🧪 **Kalki ${APP_VERSION}**`,
+    `• Understanding (on-device): **${semantic.status()}**${cal.state === 'ready' ? ` — threshold ${cal.threshold.toFixed(2)}` : ''}`,
+    `• Kalki Brain: **${st.state}**${st.model ? ` — ${st.model}` : ''} (${local.enabled() ? 'enabled' : 'off'})${st.note && st.state !== 'ready' ? ` — ${st.note.slice(0, 80)}` : ''}`,
+    `• Free web answers: **${freellm.enabled() ? 'on' : 'off'}**`,
+    `• Hosted brain (needs site key): **${llm.enabled() ? 'reachable' : 'off'}**`,
+    `• Location: **${p.city || 'not set'}** · Region: ${getRegion().toUpperCase()}`,
+    `• Online: ${navigator.onLine ? 'yes' : 'no'} · WebGPU: ${'gpu' in navigator ? 'yes' : 'no'} · Installed app: ${matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'}`,
+  ].join('\n');
+}
+
 /* The answer chain for anything that isn't a skill: the on-device brain
    (waiting for it if it's still loading), then free web answers if enabled,
    then the hosted brain if this site has a key. Returns true when something
@@ -142,7 +161,7 @@ async function answerWithBrains(q, resp) {
       try {
         const a = await local.answer(q);
         ui.typing(false);
-        ui.addBot({ text: `${a}\n\n📱 *Answered on this phone — may be wrong on facts.*`, chips: resp?.chips });
+        ui.addBot({ text: `${a}\n\n📱 *Answered on this phone by ${local.status().model || 'the on-device model'} — may be wrong on facts.*`, chips: resp?.chips });
         return true;
       } catch { ui.typing(false); }
     }
@@ -180,6 +199,8 @@ async function handleOne(t) {
   const resp = brain.handle(t);
   // Device location: "where am I", "use my location", "update my location".
   if (resp?.locate) { await runLocate(); return; }
+  // "brain status": which version and which layers are actually running.
+  if (resp?.diag) { ui.addBot({ text: diagnostics() }); return; }
   // Free internet answers (weather, currency, crypto, define, who/what-is) —
   // keyless public services, fetched right here in the browser. Open
   // questions ("why…", "how do I…") are better answered by a brain than by
@@ -582,7 +603,7 @@ function renderSettings() {
     : 'No resume saved yet. Paste it above to unlock tailored applications.';
   document.getElementById('p-apikey').value = p.apiKey || '';
   document.getElementById('pin-state').textContent = p.pinHash ? 'PIN is set. Enter a new one to change it, or clear the field and press enter to remove.' : 'No PIN set.';
-  document.getElementById('storage-used').textContent = `Using ${fmtBytes(store.usage())}.`;
+  document.getElementById('storage-used').textContent = `Kalki ${APP_VERSION} · using ${fmtBytes(store.usage())}.`;
   document.getElementById('notif-state').textContent =
     !('Notification' in window) ? 'Not supported in this browser.' : `Status: ${Notification.permission}`;
 }
@@ -791,4 +812,21 @@ setInterval(() => {
 /* ---------- PWA ---------- */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js');
+  // A new version installs in the background on launch, but the page that
+  // is already open keeps running the OLD files until the next launch. When
+  // the new worker takes control, reload once so the update applies now.
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) {
+      try { sessionStorage.setItem('kalki.updated', '1'); } catch { /* ignore */ }
+      location.reload();
+    }
+    hadController = true;
+  });
+  try {
+    if (sessionStorage.getItem('kalki.updated')) {
+      sessionStorage.removeItem('kalki.updated');
+      ui.snack(`✨ Kalki updated to ${APP_VERSION}.`);
+    }
+  } catch { /* ignore */ }
 }
