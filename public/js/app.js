@@ -15,6 +15,7 @@ import { lookupVenue, requestMessage, contactCards } from './venues.js';
 import * as flights from './flights.js';
 import * as hotels from './hotels.js';
 import * as resume from './resume.js';
+import * as geo from './geo.js';
 
 const brain = new Brain();
 theme.apply();
@@ -79,8 +80,33 @@ async function send(text) {
   for (const part of parts) await handleOne(part);
 }
 
+/* Detect the device location, save it to the profile, and report back in
+   chat. Shared by the "where am I" command and the Settings button. */
+async function runLocate() {
+  ui.typing(true);
+  try {
+    const place = await geo.locate();
+    ui.typing(false);
+    const patch = { city: place.city };
+    if (place.region) patch.region = place.region;
+    brain.setProfile(patch);
+    if (document.getElementById('view-settings').classList.contains('active')) renderSettings();
+    ui.addBot({
+      text: `📍 Got it — you’re in **${place.city}**${place.countryName ? `, ${place.countryName}` : ''}.` +
+        `${place.approx ? ' *(approximate, from your network — set your exact city in ⚙️ Settings if it’s off)*' : ''}` +
+        ` I’ll use this for deals, weather and bookings.`,
+      chips: ['Weather', 'Find a rental', 'Events near me', 'Fuel prices'],
+    });
+  } catch (e) {
+    ui.typing(false);
+    ui.addBot({ text: geo.explain(e.reason) });
+  }
+}
+
 async function handleOne(t) {
   const resp = brain.handle(t);
+  // Device location: "where am I", "use my location", "update my location".
+  if (resp?.locate) { await runLocate(); return; }
   // Free internet answers (weather, currency, crypto, define, what-is) —
   // keyless public services, fetched right here in the browser.
   if (resp?.web) {
@@ -513,6 +539,7 @@ $resumeFile.onchange = async () => {
   ui.snack('📄 Resume loaded.');
 };
 
+document.getElementById('p-locate').onclick = () => { show('chat'); runLocate(); };
 document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
 document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
 document.getElementById('p-apikey').onchange = (e) => {

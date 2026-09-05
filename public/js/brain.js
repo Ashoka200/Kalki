@@ -129,6 +129,11 @@ export class Brain {
       return { text: `${resume.STATUS_ICON[appCmd.status]} **${hit.role}${hit.company ? ` · ${hit.company}` : ''}** → ${appCmd.status}.`, chips: ['My applications', 'Help'] };
     }
 
+    // Device location — app.js runs the async geolocation lookup.
+    if (/^(?:where am i|what'?s my location|find|update|detect|use|get|share)\s+(?:my\s+)?(?:current\s+)?location\b|^(?:use|update|detect)\s+my location\b|^locate me\b/i.test(t)) {
+      return { locate: true, text: 'Finding your location…' };
+    }
+
     const chat = this.smallTalk(t);
     if (chat) return chat;
 
