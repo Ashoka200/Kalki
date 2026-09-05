@@ -140,7 +140,7 @@ export function normCity(raw) {
 
 export function extractCity(text) {
   const m = text.match(/\b(?:in|near|around)\s+([a-zÀ-ɏ][a-zÀ-ɏ' ]{1,30}?)(?=\s+(?:under|below|around|for|with|at|by|next|this|on)\b|[,.!?]|$)/i);
-  if (!m || /^(me|here|us|my|town|the)$/i.test(m[1].trim())) return null;
+  if (!m || /^(?:me|here|us|my|town|the|nearby|this area|the area|(?:my |the )?(?:current |present )?(?:location|position|place|spot|area))$/i.test(m[1].trim())) return null;
   return normCity(m[1]);
 }
 

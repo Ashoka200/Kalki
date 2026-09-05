@@ -107,15 +107,19 @@ async function runLocate() {
     if (place.region) patch.region = place.region;
     brain.setProfile(patch);
     if (document.getElementById('view-settings').classList.contains('active')) renderSettings();
+    // A request was waiting on this ("cheapest gas near me") → continue it.
+    const resumed = brain.resumeWithPlace(place.city);
     ui.addBot({
-      text: `📍 Got it — you’re in **${place.city}**${place.countryName ? `, ${place.countryName}` : ''}.` +
+      text: `📍 You’re in **${place.city}**${place.countryName ? `, ${place.countryName}` : ''}.` +
         `${place.approx ? ' *(approximate, from your network — set your exact city in ⚙️ Settings if it’s off)*' : ''}` +
-        ` I’ll use this for deals, weather and bookings.`,
-      chips: ['Weather', 'Find a rental', 'Events near me', 'Fuel prices'],
+        (resumed ? '' : ' I’ll use this for deals, weather and bookings.'),
+      chips: resumed ? undefined : ['Weather', 'Find a rental', 'Events near me', 'Fuel prices'],
     });
+    if (resumed) dispatchResp(resumed);
   } catch (e) {
     ui.typing(false);
-    ui.addBot({ text: geo.explain(e.reason) });
+    const q = brain.locateFailed();
+    ui.addBot({ text: geo.explain(e.reason) + (q ? `\n\n${q}` : '') });
   }
 }
 

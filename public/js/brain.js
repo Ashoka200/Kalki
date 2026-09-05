@@ -17,6 +17,11 @@ const MAIN_CHIPS = ['Morning brief', 'Weather', 'My spending', 'Shopping list', 
 const DEAL_SKILLS = new Set(['trip', 'rent', 'hotel', 'flight', 'events', 'shopping', 'groceries', 'rides', 'jobs', 'meds', 'gas', 'usedcar', 'insurance']);
 /* Which slot a bare follow-up like "what about pune" most likely replaces. */
 const PLACE_SLOTS = ['dest', 'city', 'area', 'to', 'item', 'items', 'model', 'role', 'drug', 'venue'];
+/* Slots that hold a place, and the ways people say "where I am right now".
+   Either one in a request means: get the device location, then carry on. */
+const GEO_SLOTS = new Set(['city', 'area', 'dest', 'to', 'from']);
+const HERE = /\b(?:my (?:current |present )?location|current location|near me|around me|around here|right here|where i am|nearby)\b/i;
+const HERE_ANSWER = /^(?:here|nearby|use my location|my (?:current )?location|where i am|current location)\s*\.?$/i;
 
 export class Brain {
   constructor() {
@@ -130,7 +135,7 @@ export class Brain {
     }
 
     // Device location — app.js runs the async geolocation lookup.
-    if (/^(?:where am i|what'?s my location|find|update|detect|use|get|share)\s+(?:my\s+)?(?:current\s+)?location\b|^(?:use|update|detect)\s+my location\b|^locate me\b/i.test(t)) {
+    if (/^(?:where am i(?: right now)?|where are we|what(?:'s| is) my (?:current |present )?location|(?:find|update|detect|use|get|share|show|check)\s+(?:my\s+)?(?:current\s+)?location|locate me|my (?:current )?location)\s*\??$/i.test(t)) {
       return { locate: true, text: 'Finding your location…' };
     }
 
@@ -415,12 +420,47 @@ export class Brain {
         if (cleaned.length > 1) this.flow.values.what = cleaned;
       }
     }
+    // "…near my current location" / "…near me": the user wants where they
+    // are NOW, not the home city from the profile. Park the flow on that
+    // slot and ask the device; app.js resumes it via resumeWithPlace().
+    if (HERE.test(text)) {
+      const slot = skill.slots.find((s) => GEO_SLOTS.has(s.name)
+        && (!(s.name in this.flow.values) || this.flow.values[s.name] === this.profile[s.profileKey]));
+      if (slot) {
+        delete this.flow.values[slot.name];
+        this.flow.pendingLocate = slot.name;
+        return { locate: true, text: skill.intro + ' Finding your location…' };
+      }
+    }
     return this.advance(skill.intro);
+  }
+
+  /** After a successful device lookup: fill the slot that was waiting for
+      it and carry the flow on. Null when nothing was waiting. */
+  resumeWithPlace(city) {
+    if (!this.flow?.pendingLocate) return null;
+    const name = this.flow.pendingLocate;
+    delete this.flow.pendingLocate;
+    this.flow.values[name] = city;
+    return this.advance();
+  }
+
+  /** Lookup failed: fall back to asking the slot in words. Returns the
+      question, or null when no flow was waiting. */
+  locateFailed() {
+    if (!this.flow?.pendingLocate) return null;
+    const slot = SKILLS[this.flow.id].slots.find((s) => s.name === this.flow.pendingLocate);
+    delete this.flow.pendingLocate;
+    return slot ? slot.q : null;
   }
 
   fillSlot(t) {
     const skill = SKILLS[this.flow.id];
     const slot = skill.slots.find((s) => !(s.name in this.flow.values));
+    if (GEO_SLOTS.has(slot.name) && HERE_ANSWER.test(t.trim())) {
+      this.flow.pendingLocate = slot.name;
+      return { locate: true, text: 'Finding your location…' };
+    }
     if (slot.optional && nlu.wantsSkip(t)) {
       this.flow.values[slot.name] = null;
       return this.advance();

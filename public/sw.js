@@ -1,6 +1,6 @@
 /* Offline-first service worker: pre-caches the whole app (it's tiny) and
    serves from cache, falling back to network. Bump VERSION on release. */
-const VERSION = 'kalki-v20';
+const VERSION = 'kalki-v21';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/brain.js',
   'js/skills.js', 'js/nlu.js', 'js/regions.js', 'js/personal.js', 'js/llm.js', 'js/web.js', 'js/venues.js', 'js/push.js', 'js/flights.js', 'js/hotels.js', 'js/resume.js', 'js/theme.js', 'js/store.js', 'js/geo.js', 'js/semantic.js', 'js/local-llm.js', 'js/freellm.js', 'manifest.webmanifest',
   'icon.svg', 'icon-192.png', 'icon-512.png'];
