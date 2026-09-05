@@ -39,7 +39,7 @@ data typically stays under a few KB (chat history is capped at 200 messages).
 | 📏 **Unit conversion (offline)** | "5 km to miles", "70 kg in lbs", "100 F to C" |
 | ❓ **Open questions (free, no key)** | Any "why/how/where/when…" question is answered via Wikipedia search — "why is the sky blue?" gets a real answer, no AI required |
 | 🌐 **Live answers (free, no key)** | "Weather in Austin", "convert 100 usd to inr", "bitcoin price", "define serendipity", "who is Marie Curie" — answered live from free keyless public services (Open-Meteo, Frankfurter, CoinGecko, dictionaryapi.dev, Wikipedia), fetched straight from the browser |
-| 🧠 **AI brain (zero setup)** | On the hosted site, questions the built-in skills can't handle are answered by Claude automatically — a bundled serverless function (`netlify/functions/ask.mjs`) holds the site's API key, so **users never configure anything**. A personal key in Settings is an optional override for the single-file/offline build |
+| 🧠 **AI brain (zero setup)** | On the hosted site the model is the **router**: any message the built-in rules don't catch goes to Claude, which either answers directly *or* starts the right skill — understanding paraphrase, typos and slang the regex NLU misses ("somewhere cheap to crash in vegas" → rent). It runs on **Haiku 4.5** with prompt caching (a few dollars/month at single-user scale), via a bundled serverless function (`netlify/functions/ask.mjs`) that holds the site's key, so **users never configure anything**. The rule-based NLU stays on as the offline fallback. A personal key in Settings is an optional override for the single-file/offline build |
 | 🔒 **PIN lock** | Optional 4–8 digit PIN asked on launch (privacy gate, not encryption) |
 
 **Conversational memory:** Kalki remembers the last place you talked about — "book a hotel **there**", "weather **there**" just work. Mid-flow, it reads your whole reply (date, time, and details in one sentence), switches flows when you change your mind, and after any deal search, tweak one thing —
@@ -111,9 +111,19 @@ hotel skills fall back to their pre-filled deep links.
 The repo ships a Netlify Function at `netlify/functions/ask.mjs` serving
 `/api/ask`. After connecting the repo in Netlify, set **one** environment
 variable on the site — `ANTHROPIC_API_KEY` (Site configuration →
-Environment variables) — and every visitor gets Claude answers with no
-setup. Without the variable the endpoint returns 503 and the app quietly
-falls back to its built-in replies; all other features are unaffected.
+Environment variables) — and every visitor gets the Claude-powered brain
+with no setup. Without the variable the endpoint returns 503 and the app
+quietly falls back to its rule-based NLU; all other features are unaffected.
+
+The brain both **answers questions** and **routes to skills**: on a routing
+call it exposes a single `start_skill` tool, and the model either replies in
+text or dispatches `{ intent, details }` that the client turns into a normal
+skill flow (`brain.startFlowFromModel`). It runs on **Haiku 4.5** with the
+system prompt and tool marked for prompt caching to keep cost minimal.
+
+**Cost control:** set a hard spend limit in the [Anthropic Console](https://console.anthropic.com)
+(Settings → Limits). The proxy also caps `max_tokens` and trims history, and
+routing is only invoked for messages the local rules don't already handle.
 
 ## Run
 

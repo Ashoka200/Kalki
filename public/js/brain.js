@@ -368,6 +368,37 @@ export class Brain {
 
   /* ---------- slot-filling ---------- */
 
+  /** Can the model dispatch to this intent? (Skills only — not sub-flows.) */
+  canStart(id) { return !!SKILLS[id]; }
+
+  /** Start a skill the LLM brain chose, seeding it with the details the model
+      extracted. Each value is validated through the slot's own parser, so a
+      loose value from the model is safe; anything missing falls back to the
+      existing regex extractors, then the profile, then slot-filling asks.
+      This reuses every skill unchanged — the model only replaces intent
+      detection and first-pass extraction. */
+  startFlowFromModel(id, details, rawText) {
+    const skill = SKILLS[id];
+    if (!skill) return null;
+    this.flow = { id, values: {} };
+    const d = details || {};
+    for (const slot of skill.slots) {
+      const given = d[slot.name];
+      if (given !== undefined && given !== null && given !== '') {
+        const v = slot.parse ? slot.parse(String(given)) : given;
+        if (v !== null && v !== undefined) { this.flow.values[slot.name] = v; continue; }
+      }
+      const ev = slot.extract ? slot.extract(rawText) : null;
+      if (ev !== null && ev !== undefined) { this.flow.values[slot.name] = ev; continue; }
+      if (slot.profileKey && this.profile[slot.profileKey]) this.flow.values[slot.name] = this.profile[slot.profileKey];
+    }
+    if (id === 'reminder' && !('what' in this.flow.values)) {
+      const seed = reminderSeed(rawText);
+      if (seed) { const c = cleanSeed(seed); if (c.length > 1) this.flow.values.what = c; }
+    }
+    return this.advance(skill.intro);
+  }
+
   startFlow(id, text) {
     const skill = SKILLS[id];
     this.flow = { id, values: {} };

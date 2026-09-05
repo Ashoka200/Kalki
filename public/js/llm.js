@@ -15,7 +15,7 @@ import { getRegion } from './regions.js';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const HOSTED_URL = 'api/ask'; // relative — same origin as the deployed site
-const MODEL = 'claude-opus-5';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 // Remembered per session so a missing backend costs one failed probe, not
 // a spinner on every unmatched message.
@@ -112,4 +112,32 @@ async function askDirect(text) {
     Throws (with .unavailable on missing-backend) on failure. */
 export function ask(text) {
   return hasKey() ? askDirect(text) : askHosted(text);
+}
+
+/** Route a message through the hosted brain. Returns either
+    { intent, details } — start that skill's flow — or { reply } — show the
+    text. The model decides which. Personal-key users (no hosted backend)
+    can't route server-side, so they get a plain answer instead.
+    Throws (with .unavailable) when no AI is reachable. */
+export async function route(text) {
+  if (hasKey()) return { reply: await askDirect(text) };
+  let res;
+  try {
+    res = await fetch(HOSTED_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, route: true, history: recentHistory(), facts: profileFacts() }),
+    });
+  } catch {
+    hostedDown = true;
+    throw unavailable('No AI backend reachable.');
+  }
+  if ([404, 405, 501, 503].includes(res.status)) {
+    hostedDown = true;
+    throw unavailable('No AI backend on this deployment.');
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data) throw new Error(data?.error || `Backend error ${res.status}`);
+  if (data.error === 'declined') throw new Error('Claude declined to answer that.');
+  return data; // { intent, details } | { reply }
 }

@@ -521,3 +521,52 @@ test('job fields survive a single-line paste', () => {
   assert.equal(resume.jobMeta(multi).role, 'FP&A Manager');
   assert.equal(resume.jobMeta(multi).company, 'Acme Corp');
 });
+
+// ---- LLM brain routing (startFlowFromModel) ----
+test('brain: model-started flow coerces details and completes when satisfied', () => {
+  store.remove('profile');
+  const brain = new Brain();
+  // Model routed a paraphrase → groceries with its one required slot filled.
+  const r = brain.startFlowFromModel('groceries', { items: 'milk, rice, eggs' }, 'compare prices on milk rice and eggs');
+  assert.equal(brain.flow, null, 'flow completes when required slots are filled');
+  assert.match(r.text, /milk, rice, eggs/);
+  assert.ok(Array.isArray(r.cards) && r.cards.length, 'finish returns market cards');
+});
+
+test('brain: model details are validated through the slot parser', () => {
+  store.remove('profile');
+  const brain = new Brain();
+  // Model gives city + budget as a string; parser coerces "2000" → 2000.
+  brain.startFlowFromModel('rent', { city: 'Las Vegas', budget: '2000' }, 'cheap place in vegas');
+  assert.equal(brain.flow.values.city, 'Las Vegas');
+  assert.equal(brain.flow.values.budget, 2000);
+  // beds is optional but still offered, so the flow stays open asking it.
+  assert.equal(brain.flow.id, 'rent');
+});
+
+test('brain: missing required slot falls through to slot-filling', () => {
+  store.remove('profile');
+  const brain = new Brain();
+  // Only a destination — flight also needs "to" and a date.
+  const r = brain.startFlowFromModel('flight', { from: 'Delhi' }, 'flights out of delhi');
+  assert.equal(brain.flow?.id, 'flight', 'flow stays open');
+  assert.equal(brain.flow.values.from, 'Delhi', 'provided detail is kept');
+  assert.ok(/to\??$|Flying to/i.test(r.text), 'asks the next unfilled slot');
+});
+
+test('brain: profile fills a slot the model omitted', () => {
+  store.set('profile', { city: 'Austin' });
+  const brain = new Brain();
+  const r = brain.startFlowFromModel('gas', {}, 'where can I fill up cheap');
+  // gas has a single slot (area) with profileKey city → completes from profile.
+  assert.equal(brain.flow, null);
+  assert.match(r.text, /Austin/);
+  store.remove('profile');
+});
+
+test('brain: canStart only accepts real skills', () => {
+  const brain = new Brain();
+  assert.equal(brain.canStart('rent'), true);
+  assert.equal(brain.canStart('chat'), false);
+  assert.equal(brain.canStart('nope'), false);
+});
