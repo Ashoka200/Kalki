@@ -17,6 +17,8 @@ import * as hotels from './hotels.js';
 import * as resume from './resume.js';
 import * as geo from './geo.js';
 import * as semantic from './semantic.js';
+import * as local from './local-llm.js';
+import * as freellm from './freellm.js';
 
 const brain = new Brain();
 theme.apply();
@@ -163,24 +165,57 @@ async function handleOne(t) {
       ui.typing(false); // fall through to Claude / built-in fallback
     }
   }
-  // Unmatched message → on-device semantic understanding first (no API
-  // key, nothing leaves the phone). If it recognises a skill, start it with
-  // the raw text so the existing extractors and slot-filling do the rest.
-  if (resp?.llmQuery && semantic.enabled()) {
-    ui.typing(true);
-    try {
-      const hit = await semantic.route(resp.llmQuery);
-      if (hit && brain.canStart(hit.intent)) {
+  if (resp?.llmQuery) {
+    const q = resp.llmQuery;
+    // Tier 0 — on-device semantic understanding (no key, nothing leaves the
+    // phone). If it recognises a skill, Tier 1 (the optional on-device LLM)
+    // pulls the details out of messy phrasing; otherwise the regex extractors
+    // and slot-filling do the rest.
+    if (semantic.enabled()) {
+      ui.typing(true);
+      try {
+        const hit = await semantic.route(q);
+        if (hit && brain.canStart(hit.intent)) {
+          let details = null;
+          if (local.ready()) details = await local.extract(hit.intent, q).catch(() => null);
+          ui.typing(false);
+          dispatchResp(details ? brain.startFlowFromModel(hit.intent, details, q) : brain.startFlow(hit.intent, q));
+          return;
+        }
+      } catch { /* fall through */ }
+      ui.typing(false);
+    }
+    // Tier 1 — a short answer from the on-device model, labelled as such.
+    if (local.ready()) {
+      ui.typing(true);
+      try {
+        const a = await local.answer(q);
         ui.typing(false);
-        dispatchResp(brain.startFlow(hit.intent, resp.llmQuery));
+        ui.addBot({ text: `${a}\n\n📱 *On-device answer — no internet used; may be wrong on facts.*`, chips: resp.chips });
         return;
+      } catch { ui.typing(false); }
+    }
+    // Tier 2 — free keyless web answers (opt-in, rate-limited, labelled).
+    if (freellm.enabled() && navigator.onLine) {
+      ui.typing(true);
+      try {
+        const r = await freellm.answer(q);
+        ui.typing(false);
+        ui.addBot({ text: `${r.text}\n\n🌐 *Free web answer via ${r.provider} — unverified.*`, chips: resp.chips });
+        return;
+      } catch {
+        ui.typing(false);
+        if (!llm.enabled()) {
+          ui.addBot({ text: 'The free answer services are busy right now. Here’s a web search instead:',
+            cards: [{ t: '🔎 Search the web', s: q.slice(0, 60), url: `https://www.google.com/search?q=${encodeURIComponent(q)}` }], chips: resp.chips });
+          return;
+        }
       }
-    } catch { /* fall through to the next layer */ }
-    ui.typing(false);
+    }
   }
-  // Unmatched message → the LLM brain. It either starts one of Kalki's
-  // skills (understanding paraphrase the rules missed) or answers directly.
-  // Falls back to the built-in reply when no AI is reachable.
+  // Tier 3 — the hosted Claude brain, only if the site is configured with a
+  // key. It either starts a skill or answers directly; falls back to the
+  // built-in reply when no AI is reachable.
   if (resp?.llmQuery && llm.enabled()) {
     ui.typing(true);
     try {
@@ -342,6 +377,8 @@ if (ui.restore() === 0) botRespond(brain.welcome());
 // Warm the on-device understanding model in the background once we're idle
 // (skipped on data-saver connections; it loads on first use instead).
 if (navigator.onLine && !navigator.connection?.saveData) setTimeout(() => semantic.warm(), 1500);
+// The opt-in on-device LLM loads from cache a little later, if enabled.
+if (!navigator.connection?.saveData) setTimeout(() => local.warm(), 4000);
 
 /* Share target: anything shared from another app or website lands here
    (registered in the manifest). A link gets link actions; plain text is
@@ -524,6 +561,7 @@ function renderSettings() {
     ready: 'On-device model ready — understands paraphrase; nothing leaves your phone.',
     failed: 'Couldn’t load the model (offline?). Built-in rules still work.',
   }[semantic.status()];
+  renderBrain();
   document.getElementById('p-resume').value = resume.getResume();
   document.getElementById('p-tone').value = resume.getTone();
   document.getElementById('p-template').value = resume.getTemplate();
@@ -585,6 +623,51 @@ document.getElementById('p-semantic').onchange = (e) => {
   brain.setProfile({ semantic: e.target.checked });
   if (e.target.checked) semantic.warm()?.then(renderSettings);
   renderSettings();
+};
+
+/* ---------- settings: on-device brain (Tier 1) + free answers (Tier 2) ---------- */
+function renderBrain() {
+  const st = local.status();
+  const $state = document.getElementById('llm-state');
+  const $btn = document.getElementById('llm-btn');
+  const $prog = document.getElementById('llm-progress');
+  const $use = document.getElementById('p-llm');
+  $use.checked = local.enabled();
+  $prog.hidden = st.state !== 'loading';
+  document.getElementById('llm-bar').style.width = Math.round(st.progress * 100) + '%';
+  const text = {
+    idle: local.enabled() ? 'Enabled — loads from your phone’s cache when needed.' : 'Not downloaded. Runs a small AI model on this phone: sharper detail extraction and short offline answers. Wi-Fi recommended.',
+    checking: 'Checking what this device can run…',
+    unsupported: `Not available here: ${st.note}`,
+    loading: `Loading ${st.model || 'model'}… ${Math.round(st.progress * 100)}% ${st.note ? '— ' + st.note.slice(0, 60) : ''}`,
+    ready: `Ready — ${st.model} (~${st.size} GB) running on this device.${st.ios ? ' Experimental on iPhone.' : ''}`,
+    failed: `Couldn’t load: ${st.note}`,
+  }[st.state];
+  $state.textContent = text;
+  $btn.textContent = st.state === 'ready' ? '✓ Kalki Brain is on this device' : st.state === 'loading' ? 'Downloading…' : '⬇️ Download Kalki Brain (on-device AI)';
+  $btn.disabled = st.state === 'loading' || st.state === 'ready';
+  document.getElementById('p-free').checked = freellm.enabled();
+}
+document.getElementById('llm-btn').onclick = async () => {
+  brain.setProfile({ localLLM: { enabled: true } });
+  renderBrain();
+  try {
+    await local.load(() => renderBrain());
+    renderBrain();
+    ui.snack(`🧠 Kalki Brain ready — ${local.status().model} is running on this device.`);
+  } catch (e) {
+    renderBrain();
+    ui.snack(local.status().state === 'unsupported' ? 'This device can’t run the on-device brain.' : `Download failed: ${e.message}`);
+  }
+};
+document.getElementById('p-llm').onchange = (e) => {
+  brain.setProfile({ localLLM: { enabled: e.target.checked } });
+  if (e.target.checked) local.warm(); else local.unload();
+  renderBrain();
+};
+document.getElementById('p-free').onchange = (e) => {
+  brain.setProfile({ freeAnswers: e.target.checked });
+  ui.snack(e.target.checked ? '🌐 Free web answers on — replies are labelled and unverified.' : 'Free web answers off.');
 };
 document.getElementById('p-apikey').onchange = (e) => {
   brain.setProfile({ apiKey: e.target.value.trim() || null });

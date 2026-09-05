@@ -594,8 +594,16 @@ test('semantic: a known phrasing routes to its skill with a high score', async (
   assert.equal(semantic.status(), 'ready');
 });
 
-test('semantic: unrelated text is rejected below the threshold', async () => {
+test('semantic: unrelated text is rejected below the calibrated threshold', async () => {
   assert.equal(await semantic.route('zzqx vvrp qqlm wwtt'), null);
+  const { threshold } = semantic.calibration();
+  assert.ok(threshold >= semantic.FLOOR, 'threshold never below the floor');
+});
+
+test('semantic: must-not-route messages (chit-chat, other modules) stay out', async () => {
+  for (const neg of ['tell me a joke', 'set a timer for 10 minutes', 'add milk to shopping list']) {
+    assert.equal(await semantic.route(neg), null, neg);
+  }
 });
 
 test('semantic: every routable skill exists in the brain and has examples', async () => {
@@ -629,4 +637,35 @@ test('city aliases: "I live in …" learns the canonical name', () => {
   assert.deepEqual(nlu.detectProfileFact('i live in bangalore'), { key: 'city', value: 'Bengaluru' });
   assert.deepEqual(nlu.detectProfileFact('I live in Austin.'), { key: 'city', value: 'Austin' });
   assert.equal(nlu.normCity('vegas?'), 'Las Vegas');
+});
+
+
+// ---- On-device LLM: pure helpers ----
+const local = await import('../public/js/local-llm.js');
+
+test('local-llm: device class and model choice from WebLLM prebuilt ids', () => {
+  const ids = ['Qwen3-1.7B-q4f16_1-MLC', 'Llama-3.2-1B-Instruct-q4f16_1-MLC', 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', 'SmolLM2-360M-Instruct-q4f16_1-MLC'];
+  assert.equal(local.deviceClass({ ios: true }), 'constrained');
+  assert.equal(local.deviceClass({ ios: false, deviceMemory: 4 }), 'constrained');
+  assert.equal(local.deviceClass({ ios: false, deviceMemory: 8, maxStorageBufferBindingSize: 1 << 30 }), 'capable');
+  assert.equal(local.pickModel(ids, 'capable').label, 'Qwen3 1.7B');
+  assert.equal(local.pickModel(ids, 'constrained').label, 'Llama 3.2 1B');
+  // upstream rename → next preference, never a crash
+  assert.equal(local.pickModel(ids.filter((i) => !/Llama/.test(i)), 'constrained').label, 'Qwen2.5 0.5B');
+  assert.equal(local.pickModel([], 'capable'), null);
+});
+
+test('local-llm: extraction schema mirrors a skill\'s askable slots', () => {
+  const sc = local.schemaFor('hotel');
+  assert.deepEqual(Object.keys(sc.properties), ['city', 'checkin', 'nights', 'guests']);
+  assert.equal(sc.additionalProperties, false);
+  assert.ok(!('repeat' in local.schemaFor('reminder').properties), 'hidden slots are not asked of the model');
+  assert.equal(local.schemaFor('nope'), null);
+  assert.equal(local.enabled(), false, 'off until the user downloads it');
+});
+
+const freellm = await import('../public/js/freellm.js');
+test('freellm: off by default', () => {
+  store.remove('profile');
+  assert.equal(freellm.enabled(), false);
 });

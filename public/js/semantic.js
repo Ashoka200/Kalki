@@ -2,7 +2,7 @@
 
    The regex NLU (nlu.js) only recognises phrasings someone wrote a rule for.
    This module understands MEANING instead: a small sentence-embedding model
-   (all-MiniLM-L6-v2, ~23 MB quantised) runs right here in the browser via
+   (bge-small-en-v1.5, ~34 MB quantised) runs right here in the browser via
    Transformers.js (ONNX Runtime / WebAssembly — no GPU needed, works in
    iPhone Safari). Every skill has a handful of example phrasings; a message
    is routed to the skill whose examples it is closest to in meaning, so
@@ -16,10 +16,23 @@
 import { store } from './store.js';
 
 const CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
-const MODEL = 'Xenova/all-MiniLM-L6-v2';
-/* Cosine threshold for accepting a match. Paraphrases of the same request
-   typically score 0.5–0.8 with MiniLM; unrelated text stays under ~0.3. */
-export const MIN_SCORE = 0.42;
+const MODEL = 'Xenova/bge-small-en-v1.5';
+const POOLING = 'cls'; // what bge was trained with
+/* The accept threshold is CALIBRATED at load time rather than hard-coded:
+   different embedding models place "unrelated" at very different cosine
+   levels (MiniLM ~0.3, bge ~0.6). We embed a set of messages that must NOT
+   route to a skill (chit-chat, general questions, things other modules
+   handle) and set the bar just above the best score any of them reaches.
+   FLOOR is a sanity minimum; MARGIN is how clearly the winning skill must
+   beat the runner-up so ambiguous messages fall through instead of guessing. */
+export const FLOOR = 0.3;
+export const MARGIN = 0.015;
+export const NEGATIVES = [
+  'how are you', 'tell me a joke', 'what is the capital of france', 'thanks a lot', 'good morning',
+  'who is marie curie', 'why is the sky blue', 'what time is it', 'hello there', 'translate good morning to spanish',
+  'set a timer for 10 minutes', 'spent 40 on groceries', 'add milk to shopping list', 'what is 15 percent of 80',
+  'weather in austin', 'convert 100 usd to inr', 'search chat for rent', 'show my bookings', 'my spending this month',
+];
 
 /* One entry per user-startable skill (ids match skills.js). These are the
    "training data": varied, casual, real-world phrasings. */
@@ -50,30 +63,53 @@ let embed = null;   // (texts: string[]) => Promise<number[][]>  (unit-normalise
 let index = null;   // [{ intent, vec }]
 let state = 'idle'; // idle | loading | ready | failed
 let loading = null;
+let threshold = FLOOR; // recalibrated in build()
+
+/** Calibrated accept threshold (for the Settings status line / debugging). */
+export const calibration = () => ({ threshold, state });
 
 /** On unless the user switched it off in Settings. */
 export const enabled = () => store.get('profile', {}).semantic !== false;
 export const status = () => (enabled() ? state : 'off');
 
 /** Tests inject a deterministic embedder here instead of downloading a model. */
-export function _setEmbedder(fn) { embed = fn; index = null; state = 'idle'; loading = null; }
+export function _setEmbedder(fn) { embed = fn; index = null; state = 'idle'; loading = null; threshold = FLOOR; }
 
 async function defaultEmbedder() {
   const { pipeline } = await import(CDN);
   const extractor = await pipeline('feature-extraction', MODEL, { dtype: 'q8' });
-  return async (texts) => (await extractor(texts, { pooling: 'mean', normalize: true })).tolist();
+  return async (texts) => (await extractor(texts, { pooling: POOLING, normalize: true })).tolist();
 }
 
 const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
 
+/** Best score per intent for one query vector, sorted high → low. */
+function scores(q) {
+  const best = new Map();
+  for (const e of index) {
+    const s = dot(q, e.vec);
+    if (!best.has(e.intent) || s > best.get(e.intent)) best.set(e.intent, s);
+  }
+  return [...best].map(([intent, score]) => ({ intent, score })).sort((a, b) => b.score - a.score);
+}
+
 async function build() {
   if (!embed) embed = await defaultEmbedder();
   const intents = Object.keys(EXAMPLES);
-  const vecs = await embed(intents.flatMap((id) => EXAMPLES[id]));
+  const texts = intents.flatMap((id) => EXAMPLES[id]);
+  const vecs = await embed([...texts, ...NEGATIVES]);
   const idx = [];
   let k = 0;
   for (const id of intents) for (let i = 0; i < EXAMPLES[id].length; i++) idx.push({ intent: id, vec: vecs[k++] });
   index = idx;
+  // Calibrate: the bar sits just above the best score any must-not-route
+  // message achieves against the skill examples.
+  let worst = 0;
+  for (let i = 0; i < NEGATIVES.length; i++) {
+    const top = scores(vecs[k + i])[0];
+    if (top && top.score > worst) worst = top.score;
+  }
+  threshold = Math.max(FLOOR, worst + 0.02);
 }
 
 /** Start loading the model + example index in the background. Safe to call
@@ -93,10 +129,8 @@ export async function route(text) {
   if (!enabled()) return null;
   if (state !== 'ready') { await warm(); if (state !== 'ready') return null; }
   const [q] = await embed([text]);
-  let best = null;
-  for (const e of index) {
-    const s = dot(q, e.vec);
-    if (!best || s > best.score) best = { intent: e.intent, score: s };
-  }
-  return best && best.score >= MIN_SCORE ? best : null;
+  const [best, second] = scores(q);
+  if (!best || best.score < threshold) return null;
+  if (second && best.score - second.score < MARGIN) return null; // too close to call
+  return best;
 }
