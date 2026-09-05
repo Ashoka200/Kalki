@@ -16,6 +16,7 @@ import * as flights from './flights.js';
 import * as hotels from './hotels.js';
 import * as resume from './resume.js';
 import * as geo from './geo.js';
+import * as semantic from './semantic.js';
 
 const brain = new Brain();
 theme.apply();
@@ -161,6 +162,21 @@ async function handleOne(t) {
     } catch {
       ui.typing(false); // fall through to Claude / built-in fallback
     }
+  }
+  // Unmatched message → on-device semantic understanding first (no API
+  // key, nothing leaves the phone). If it recognises a skill, start it with
+  // the raw text so the existing extractors and slot-filling do the rest.
+  if (resp?.llmQuery && semantic.enabled()) {
+    ui.typing(true);
+    try {
+      const hit = await semantic.route(resp.llmQuery);
+      if (hit && brain.canStart(hit.intent)) {
+        ui.typing(false);
+        dispatchResp(brain.startFlow(hit.intent, resp.llmQuery));
+        return;
+      }
+    } catch { /* fall through to the next layer */ }
+    ui.typing(false);
   }
   // Unmatched message → the LLM brain. It either starts one of Kalki's
   // skills (understanding paraphrase the rules missed) or answers directly.
@@ -322,6 +338,10 @@ document.getElementById('composer').onsubmit = (e) => {
 ui.showChips.onPick = send;
 
 if (ui.restore() === 0) botRespond(brain.welcome());
+
+// Warm the on-device understanding model in the background once we're idle
+// (skipped on data-saver connections; it loads on first use instead).
+if (navigator.onLine && !navigator.connection?.saveData) setTimeout(() => semantic.warm(), 1500);
 
 /* Share target: anything shared from another app or website lands here
    (registered in the manifest). A link gets link actions; plain text is
@@ -496,6 +516,14 @@ function renderSettings() {
   document.getElementById('p-spend').value = p.spendBudget || '';
   document.getElementById('p-region').value = getRegion();
   document.getElementById('p-tts').checked = !!p.tts;
+  document.getElementById('p-semantic').checked = semantic.enabled();
+  document.getElementById('semantic-state').textContent = {
+    off: 'Off — using built-in rules only.',
+    idle: 'Loads on first use.',
+    loading: 'Downloading the understanding model…',
+    ready: 'On-device model ready — understands paraphrase; nothing leaves your phone.',
+    failed: 'Couldn’t load the model (offline?). Built-in rules still work.',
+  }[semantic.status()];
   document.getElementById('p-resume').value = resume.getResume();
   document.getElementById('p-tone').value = resume.getTone();
   document.getElementById('p-template').value = resume.getTemplate();
@@ -553,6 +581,11 @@ $resumeFile.onchange = async () => {
 document.getElementById('p-locate').onclick = () => { show('chat'); runLocate(); };
 document.getElementById('p-region').onchange = (e) => brain.setProfile({ region: e.target.value });
 document.getElementById('p-tts').onchange = (e) => brain.setProfile({ tts: e.target.checked });
+document.getElementById('p-semantic').onchange = (e) => {
+  brain.setProfile({ semantic: e.target.checked });
+  if (e.target.checked) semantic.warm()?.then(renderSettings);
+  renderSettings();
+};
 document.getElementById('p-apikey').onchange = (e) => {
   brain.setProfile({ apiKey: e.target.value.trim() || null });
   ui.snack(e.target.value.trim() ? '🧠 Claude brain enabled.' : 'Claude brain disabled.');

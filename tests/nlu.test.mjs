@@ -570,3 +570,45 @@ test('brain: canStart only accepts real skills', () => {
   assert.equal(brain.canStart('chat'), false);
   assert.equal(brain.canStart('nope'), false);
 });
+
+// ---- On-device semantic router (deterministic fake embedder) ----
+const semantic = await import('../public/js/semantic.js');
+function hashVec(t) {
+  const v = new Array(128).fill(0);
+  const s = ' ' + t.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ') + ' ';
+  for (let i = 0; i < s.length - 2; i++) {
+    let h = 0;
+    for (const c of s.slice(i, i + 3)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    v[h % 128] += 1;
+  }
+  const n = Math.hypot(...v) || 1;
+  return v.map((x) => x / n);
+}
+semantic._setEmbedder((texts) => Promise.resolve(texts.map(hashVec)));
+
+test('semantic: a known phrasing routes to its skill with a high score', async () => {
+  store.remove('profile');
+  const hit = await semantic.route(semantic.EXAMPLES.rent[0]);
+  assert.equal(hit.intent, 'rent');
+  assert.ok(hit.score > 0.99);
+  assert.equal(semantic.status(), 'ready');
+});
+
+test('semantic: unrelated text is rejected below the threshold', async () => {
+  assert.equal(await semantic.route('zzqx vvrp qqlm wwtt'), null);
+});
+
+test('semantic: every routable skill exists in the brain and has examples', async () => {
+  const b = new Brain();
+  for (const [id, ex] of Object.entries(semantic.EXAMPLES)) {
+    assert.ok(b.canStart(id), `${id} is a real skill`);
+    assert.ok(ex.length >= 5, `${id} has enough examples`);
+  }
+});
+
+test('semantic: switched off in Settings → never routes', async () => {
+  store.set('profile', { semantic: false });
+  assert.equal(semantic.status(), 'off');
+  assert.equal(await semantic.route(semantic.EXAMPLES.rent[0]), null);
+  store.remove('profile');
+});
